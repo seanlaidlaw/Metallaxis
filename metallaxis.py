@@ -10,12 +10,14 @@ import gzip
 
 # Importer les modules de tierce-partie
 import magic  # pour detecter type de fichier
+import allel  # pour convertir vcf en h5
+import h5py  # pour lire les fichiers h5
 
 
 def decompress_vcf(compression_type, selected_vcf):
 	"""
 	Décompresse le fichier d'entrée (si compressé avec with xz/gz/bz2), et
-        retourne un fichier VCF décompressé
+	retourne un fichier H5
 	"""
 	if compression_type == "":
 		decompressed_arg_file = open(selected_vcf, mode="rb")
@@ -25,7 +27,12 @@ def decompress_vcf(compression_type, selected_vcf):
 	decompressed_out.write(decompressed_arg_file.read())
 	decompressed_arg_file.close()
 	decompressed_out.close()
-	return "decompressed_vcf_output.vcf"
+	# transforme les fichiers decompressés en fichiers HDF5 afin qu'on puisse
+	# analyser les VCF très gros et qui sont normalement trop gros pour pouvoir
+	# stocker en RAM
+	allel.vcf_to_hdf5("decompressed_vcf_output.vcf", "input_file.h5", overwrite=True)
+	h5_input = h5py.File("input_file.h5", mode="r")
+	return h5_input
 
 
 # make sure script is only given one arg and that its a vcf
@@ -44,22 +51,22 @@ except FileNotFoundError:
 	print("ERROR: File given in argument does not exist. You specified : " + str(selected_vcf))
 	exit(1)
 
-# Decompress compressed files to normal vcf text file
+# Decompresse fichiers selectionées en fichiers h5
 if "XZ" in arg_file_type:
 	print("Detected Filetype: xz compressed VCF")
-	input_vcf = decompress_vcf("lzma",selected_vcf)
+	h5_input = decompress_vcf("lzma",selected_vcf)
 
 elif "bzip2" in arg_file_type:
 	print("Detected Filetype: gz compressed VCF")
-	input_vcf = decompress_vcf("bz2",selected_vcf)
+	h5_input = decompress_vcf("bz2",selected_vcf)
 
 elif "gzip" in arg_file_type:
 	print("Detected Filetype: gz compressed VCF")
-	input_vcf = decompress_vcf("gzip",selected_vcf)
+	h5_input = decompress_vcf("gzip",selected_vcf)
 
 elif "Variant Call Format" in arg_file_type:
 	print("Detected filetype: uncompressed VCF")
-	input_vcf = decompress_vcf("",selected_vcf)
+	h5_input = decompress_vcf("",selected_vcf)
 else:
 	print("Error: Argument must be a VCF file")
 	exit(1)  # quitte le logiciel avec code 1 (erreur)
