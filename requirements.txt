@@ -2,3 +2,4 @@ python-magic==0.4.15
 scikit-allel==1.1.10
 numpy==1.15.3
 h5py==2.8.0
+PyQt5==5.11.2
