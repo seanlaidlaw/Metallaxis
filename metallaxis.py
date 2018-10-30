@@ -47,6 +47,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 	def __init__(self):
 		super(gui_base_object ,self).__init__()
 		self.setupUi(self)
+		self.setWindowTitle("Metallaxis")
 		# boutons sur interface
 		self.open_vcf_button.clicked.connect(self.select_vcf)
 		# menus sur interface
