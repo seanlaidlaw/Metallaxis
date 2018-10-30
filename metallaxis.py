@@ -13,7 +13,7 @@ import magic  # pour detecter type de fichier
 import allel  # pour convertir vcf en h5
 import h5py  # pour lire les fichiers h5
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QApplication, QDialog
+from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox
 
 
 
@@ -26,10 +26,9 @@ def decompress_vcf(compression_type, selected_vcf):
 		decompressed_arg_file = open(selected_vcf, mode="rb")
 	else:
 		decompressed_arg_file = eval(compression_type).open(selected_vcf, mode="rb")
-	decompressed_out = open("decompressed_vcf_output.vcf", "wb")
-	decompressed_out.write(decompressed_arg_file.read())
+	with open("decompressed_vcf_output.vcf", "wb") as decompressed_out:
+            decompressed_out.write(decompressed_arg_file.read())
 	decompressed_arg_file.close()
-	decompressed_out.close()
 	# transforme les fichiers decompressés en fichiers HDF5 afin qu'on puisse
 	# analyser les VCF très gros et qui sont normalement trop gros pour pouvoir
 	# stocker en RAM
@@ -49,6 +48,18 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.setupUi(self)
 		self.open_vcf_button.clicked.connect(self.select_vcf)
 
+	def throw_error_message(self,error_message):
+		"""
+		Generer une dialogue d'alerte avec l'argument comme message d'alerte
+		"""
+		print("Error: " + error_message)
+		error_dialog  = QtWidgets.QMessageBox()
+		error_dialog.setIcon(QMessageBox.Critical)
+		error_dialog.setWindowTitle("Error!")
+		error_dialog.setText(error_message)
+		error_dialog.setStandardButtons(QMessageBox.Ok)
+		error_dialog.exec_()
+
 	def select_vcf(self):
 		"""
 		Ouvre une dialogue pour que l'utilisateur puisse choisir un fichier
@@ -60,7 +71,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
                     "VCF Files (*.vcf *.vcf.xz *.vcf.gz *.vcf.bz2)\
                     ;;All Files(*.*)")
 		selected_vcf = selected_vcf[0]
-		self.loaded_vcf_lineedit.setText(selected_vcf)
 
 		# Detecte type de fichier et decompresse si compressé
 		try:
@@ -69,8 +79,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				arg_file_type = magic.from_file(selected_vcf)
 		except FileNotFoundError:
 				# catch erreur si fichier n'existe pas
-				print("ERROR: File given in argument does not exist. You specified : " + str(selected_vcf))
-				exit(1)
+				self.throw_error_message("ERROR: Selected file does not \
+							 exist. You specified : " + str(selected_vcf))
 
 		# Decompresse fichiers selectionées en fichiers h5
 		if "XZ" in arg_file_type:
@@ -89,10 +99,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				print("Detected filetype: uncompressed VCF")
 				h5_input = decompress_vcf("",selected_vcf)
 		else:
-				print("Error: Argument must be a VCF file")
-				exit(1)  # quitte le logiciel avec code 1 (erreur)
-
-
+				self.throw_error_message("Error: Selected file must be a VCF file")
+				return 1
+		self.loaded_vcf_lineedit.setText(selected_vcf)
 
 # Si le script est executé directement, lance l'interface graphique
 if __name__ == '__main__':
