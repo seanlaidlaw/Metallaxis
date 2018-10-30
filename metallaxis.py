@@ -3,6 +3,7 @@
 
 ## Importer des modules de Python Standard
 import sys
+import re
 # pour gerer les VCF compressé
 import lzma
 import bz2
@@ -13,7 +14,7 @@ import magic  # pour detecter type de fichier
 import allel  # pour convertir vcf en h5
 import h5py  # pour lire les fichiers h5
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox
+from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox, QLabel
 
 
 
@@ -66,6 +67,20 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		error_dialog.setStandardButtons(QMessageBox.Ok)
 		error_dialog.exec_()
 
+	def empty_qt_layout(self, qt_layout_name):
+		"""
+		Vide le Qt layout afin qu'on puisse changer de fichier VCF sans
+		garder l'information du dernier sur l'interface.
+
+		Accepte le nom d'un Qt layout comme argument.
+		"""
+		while 1:
+			layout_widget = qt_layout_name.takeAt(0)
+			if not layout_widget:
+				break
+			layout_widget.widget().deleteLater()
+
+
 	def select_vcf(self):
 		"""
 		Ouvre une dialogue pour que l'utilisateur puisse choisir un fichier
@@ -107,11 +122,49 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		else:
 				self.throw_error_message("Error: Selected file must be a VCF file")
 				return 1
+		# active les widgets qui sont desactivés tant qu'on a pas de VCF selectioné
 		self.loaded_vcf_lineedit.setText(selected_vcf)
+		self.loaded_vcf_lineedit.setEnabled(True)
+		self.loaded_vcf_label.setEnabled(True)
+		self.metadata_area_label.setEnabled(True)
+
+		# effacer espace metadonées (utile si on charge un fichier apres un autre)
+		self.empty_qt_layout(self.dynamic_metadata_label_results)
+		self.empty_qt_layout(self.dynamic_metadata_label_tags)
+
+
+		# Obtenir Metadonnées à partir du header du fichier VCF:
+		##source=Tangram
+		##ALT=<ID=INS:ME:AL,Description="Insertion of ALU element">
+		##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+
+		metadata_dict = {}
+		# Match des groupes des deux cotés du "=", apres un "##"
+		regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
+		with open("decompressed_vcf_output.vcf") as decompressed_out:
+			metadata_line_nb = 0
+			for line in decompressed_out:
+				if line.startswith('##'):
+					metadata_tag = regex_metadata.search(line).group(1)
+					metadata_result = regex_metadata.search(line).group(2)
+
+					metadata_dict_entry = [metadata_tag, metadata_result]
+					metadata_dict[metadata_line_nb] = metadata_dict_entry
+					metadata_line_nb = metadata_line_nb + 1
+
+		for metadata_line_nb in metadata_dict:
+			metadata_tag = metadata_dict[metadata_line_nb][0]
+			metadata_result = metadata_dict[metadata_line_nb][1]
+			if not metadata_tag.isupper():
+				# Generer dynamiquement du texte pour le titre et resultat pour
+				# chaque type de metadonnée non-majiscule
+				self.dynamic_metadata_label_tags.addWidget(QtWidgets.QLabel(metadata_tag, self))
+				self.dynamic_metadata_label_results.addWidget(QtWidgets.QLabel(metadata_result, self))
+
 
 # Si le script est executé directement, lance l'interface graphique
 if __name__ == '__main__':
-    MetallaxisApp = QApplication(sys.argv)
-    MetallaxisGui_object = MetallaxisGui()
-    MetallaxisGui_object.show()
-    sys.exit(MetallaxisApp.exec_())
+	MetallaxisApp = QApplication(sys.argv)
+	MetallaxisGui_object = MetallaxisGui()
+	MetallaxisGui_object.show()
+	sys.exit(MetallaxisApp.exec_())

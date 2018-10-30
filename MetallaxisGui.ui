@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>Metallaxis</class>
+ <widget class="QMainWindow" name="Metallaxis">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -52,16 +52,29 @@
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout">
-            <item>
-             <widget class="QLabel" name="label_3">
-              <property name="text">
-               <string>Loaded VCF File :</string>
+           <layout class="QGridLayout" name="gridLayout_2">
+            <item row="5" column="0">
+             <layout class="QVBoxLayout" name="dynamic_metadata_label_tags"/>
+            </item>
+            <item row="3" column="0">
+             <widget class="Line" name="line_3">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
               </property>
              </widget>
             </item>
-            <item>
+            <item row="3" column="1">
+             <widget class="Line" name="line_4">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
              <widget class="QLineEdit" name="loaded_vcf_lineedit">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
               <property name="autoFillBackground">
                <bool>false</bool>
               </property>
@@ -76,120 +89,40 @@
               </property>
              </widget>
             </item>
-            <item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="loaded_vcf_label">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="text">
+               <string>Loaded VCF File :</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
              <widget class="QPushButton" name="open_vcf_button">
               <property name="text">
                <string>Open VCF</string>
               </property>
              </widget>
             </item>
-           </layout>
-          </item>
-          <item>
-           <spacer name="verticalSpacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Maximum</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>30</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_3">
-            <item>
-             <layout class="QVBoxLayout" name="verticalLayout">
-              <item>
-               <widget class="QLabel" name="label_2">
-                <property name="text">
-                 <string>Get Annotation from online sources:</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="vep_dl_checkBox">
-                <property name="text">
-                 <string>VEP</string>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="cosmic_dl_checkBox">
-                <property name="text">
-                 <string>COSMIC</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="polyphen_dl_checkBox">
-                <property name="text">
-                 <string>polyPhen</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="OMIM_dl_checkBox">
-                <property name="text">
-                 <string>OMIM Clinical Significance</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="download_annotation_button">
-                <property name="enabled">
-                 <bool>true</bool>
-                </property>
-                <property name="text">
-                 <string>Download Annotation</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
+            <item row="5" column="1">
+             <layout class="QVBoxLayout" name="dynamic_metadata_label_results"/>
             </item>
-            <item>
-             <widget class="Line" name="line">
+            <item row="3" column="2">
+             <widget class="Line" name="line_6">
               <property name="orientation">
-               <enum>Qt::Vertical</enum>
+               <enum>Qt::Horizontal</enum>
               </property>
              </widget>
             </item>
-            <item>
-             <widget class="QPushButton" name="use_local_annotation_button">
+            <item row="4" column="0">
+             <widget class="QLabel" name="metadata_area_label">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
               <property name="text">
-               <string>Use Local Annotation File</string>
-              </property>
-              <property name="checkable">
-               <bool>false</bool>
-              </property>
-              <property name="autoDefault">
-               <bool>false</bool>
-              </property>
-              <property name="default">
-               <bool>false</bool>
-              </property>
-              <property name="flat">
-               <bool>false</bool>
+               <string>Extracted VCF Metadata</string>
               </property>
              </widget>
             </item>
@@ -211,6 +144,148 @@
          </layout>
         </item>
        </layout>
+      </widget>
+      <widget class="QWidget" name="tab">
+       <attribute name="title">
+        <string>Annotation</string>
+       </attribute>
+       <widget class="QWidget" name="gridLayoutWidget">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>741</width>
+          <height>491</height>
+         </rect>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_3">
+         <item row="1" column="0">
+          <spacer name="verticalSpacer_4">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="0" column="0">
+          <layout class="QHBoxLayout" name="horizontalLayout_6">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_3">
+             <item>
+              <widget class="QLabel" name="get_annotation_label_2">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>Get Annotation from online sources:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="vep_dl_checkBox_2">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>VEP</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="cosmic_dl_checkBox_2">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>COSMIC</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="polyphen_dl_checkBox_2">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>polyPhen</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="OMIM_dl_checkBox_2">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>OMIM Clinical Significance</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="download_annotation_button_2">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>Download Annotation</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="Line" name="line_5">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="use_local_annotation_button_2">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string>Use Local Annotation File</string>
+             </property>
+             <property name="checkable">
+              <bool>false</bool>
+             </property>
+             <property name="autoDefault">
+              <bool>false</bool>
+             </property>
+             <property name="default">
+              <bool>false</bool>
+             </property>
+             <property name="flat">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
       </widget>
       <widget class="QWidget" name="statistics_tab">
        <property name="enabled">
@@ -306,13 +381,21 @@
     <addaction name="actionAbout_Metallaxis"/>
     <addaction name="separator"/>
     <addaction name="actionOpen_VCF"/>
-    <addaction name="actionOpen_h5"/>
     <addaction name="separator"/>
     <addaction name="actionExport_Report"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionMetallaxis_Documentation"/>
+    <addaction name="separator"/>
+    <addaction name="actionGithub_Page"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar">
    <property name="sizeGripEnabled">
@@ -342,6 +425,16 @@
   <action name="actionExport_Report">
    <property name="text">
     <string>Export Report</string>
+   </property>
+  </action>
+  <action name="actionMetallaxis_Documentation">
+   <property name="text">
+    <string>Metallaxis Documentation</string>
+   </property>
+  </action>
+  <action name="actionGithub_Page">
+   <property name="text">
+    <string>Github Page</string>
    </property>
   </action>
  </widget>
