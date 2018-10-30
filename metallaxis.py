@@ -29,12 +29,13 @@ def decompress_vcf(compression_type, selected_vcf):
 	with open("decompressed_vcf_output.vcf", "wb") as decompressed_out:
             decompressed_out.write(decompressed_arg_file.read())
 	decompressed_arg_file.close()
-	# transforme les fichiers decompressés en fichiers HDF5 afin qu'on puisse
-	# analyser les VCF très gros et qui sont normalement trop gros pour pouvoir
-	# stocker en RAM
-	allel.vcf_to_hdf5("decompressed_vcf_output.vcf", "input_file.h5", overwrite=True)
-	h5_input = h5py.File("input_file.h5", mode="r")
-	return h5_input
+
+	# # transforme les fichiers decompressés en fichiers HDF5 afin qu'on puisse
+	# # analyser les VCF très gros et qui sont normalement trop gros pour pouvoir
+	# # stocker en RAM
+	# allel.vcf_to_hdf5("decompressed_vcf_output.vcf", "input_file.h5", overwrite=True)
+	# h5_input = h5py.File("input_file.h5", mode="r")
+	# return h5_input
 
 # Charge l'interface graphique construit en XML
 gui_window_object, gui_base_object = uic.loadUiType("MetallaxisGui.ui")
