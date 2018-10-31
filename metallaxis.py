@@ -105,19 +105,19 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		# Decompresse fichiers selectionées en fichiers h5
 		if "XZ" in arg_file_type:
-				print("Detected Filetype: xz compressed VCF")
+				self.detected_filetype_label.setText("xz compressed VCF")
 				h5_input = decompress_vcf("lzma",selected_vcf)
 
 		elif "bzip2" in arg_file_type:
-				print("Detected Filetype: gz compressed VCF")
+				self.detected_filetype_label.setText("bz2 compressed VCF")
 				h5_input = decompress_vcf("bz2",selected_vcf)
 
 		elif "gzip" in arg_file_type:
-				print("Detected Filetype: gz compressed VCF")
+				self.detected_filetype_label.setText("gz compressed VCF")
 				h5_input = decompress_vcf("gzip",selected_vcf)
 
 		elif "Variant Call Format" in arg_file_type:
-				print("Detected filetype: uncompressed VCF")
+				self.detected_filetype_label.setText("uncompressed VCF")
 				h5_input = decompress_vcf("",selected_vcf)
 		else:
 				self.throw_error_message("Error: Selected file must be a VCF file")
@@ -126,6 +126,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.loaded_vcf_lineedit.setText(selected_vcf)
 		self.loaded_vcf_lineedit.setEnabled(True)
 		self.loaded_vcf_label.setEnabled(True)
+		self.meta_detected_filetype_label.setEnabled(True)
 		self.metadata_area_label.setEnabled(True)
 
 		# effacer espace metadonées (utile si on charge un fichier apres un autre)
