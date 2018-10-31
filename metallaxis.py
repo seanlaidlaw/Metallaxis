@@ -14,7 +14,7 @@ import magic  # pour detecter type de fichier
 import allel  # pour convertir vcf en h5
 import h5py  # pour lire les fichiers h5
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox, QLabel
+from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox, QTableWidget, QLabel
 
 
 
@@ -128,10 +128,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.loaded_vcf_label.setEnabled(True)
 		self.meta_detected_filetype_label.setEnabled(True)
 		self.metadata_area_label.setEnabled(True)
+		self.viewer_tab_table_widget.setEnabled(True)
 
 		# effacer espace metadonées (utile si on charge un fichier apres un autre)
 		self.empty_qt_layout(self.dynamic_metadata_label_results)
 		self.empty_qt_layout(self.dynamic_metadata_label_tags)
+		self.viewer_tab_table_widget.setRowCount(0) # supprime tout les lignes
 
 
 		# Obtenir Metadonnées à partir du header du fichier VCF:
@@ -143,19 +145,52 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# Match des groupes des deux cotés du "=", apres un "##"
 		regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
 		with open("decompressed_vcf_output.vcf") as decompressed_out:
-			metadata_line_nb = 0
+			# determiner taille du table
+			table_width, table_length = 0, 0
+			for line in decompressed_out:
+				if not line.startswith('#'):
+					if table_width < len(line.split("\t")):
+						table_width = len(line.split("\t"))
+					table_length += 1
+
+		self.viewer_tab_table_widget.setRowCount(table_length)
+		self.viewer_tab_table_widget.setColumnCount(table_width)
+
+		# parser vcf decompressé dans plusieurs dictionnaires
+		with open("decompressed_vcf_output.vcf") as decompressed_out:
+			vcf_line_nb, metadata_line_nb = 0, 0
 			for line in decompressed_out:
 				if line.startswith('##'):
 					metadata_tag = regex_metadata.search(line).group(1)
 					metadata_result = regex_metadata.search(line).group(2)
-
-					metadata_dict_entry = [metadata_tag, metadata_result]
+					# dans un premier temps on va pas s'interesser pas aux
+					# metadonéées 'en majiscules' ("INFO" "FILTER" "ALT")
+					# peuvent être regroupés ensemble dans un tableau
+					if metadata_tag.isupper():
+						metadata_type = metadata_tag
+					else:
+						metadata_type = "basic"
+					metadata_dict_entry = [metadata_type,metadata_tag, metadata_result]
 					metadata_dict[metadata_line_nb] = metadata_dict_entry
-					metadata_line_nb = metadata_line_nb + 1
+					metadata_line_nb += 1
+				elif line.startswith('#'):
+					line = line.strip()
+					line = line.strip("#")
+					column_names = line.split("\t")
+					self.viewer_tab_table_widget.setHorizontalHeaderLabels(column_names)
+				else:
+					line = line.strip()
+					vcf_field_nb = 0
+					for vcf_field in line.split("\t"):
+						vcf_field = vcf_field.strip()
+						self.viewer_tab_table_widget.setItem(vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(vcf_field))
+						vcf_field_nb +=  1
+					vcf_line_nb += 1
+
 
 		for metadata_line_nb in metadata_dict:
-			metadata_tag = metadata_dict[metadata_line_nb][0]
-			metadata_result = metadata_dict[metadata_line_nb][1]
+			metadata_tag = metadata_dict[metadata_line_nb][1]
+			metadata_result = metadata_dict[metadata_line_nb][2]
 			if not metadata_tag.isupper():
 				# Generer dynamiquement du texte pour le titre et resultat pour
 				# chaque type de metadonnée non-majiscule
