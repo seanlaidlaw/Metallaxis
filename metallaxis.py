@@ -28,7 +28,7 @@ def decompress_vcf(compression_type, selected_vcf):
 	else:
 		decompressed_arg_file = eval(compression_type).open(selected_vcf, mode="rb")
 	with open("decompressed_vcf_output.vcf", "wb") as decompressed_out:
-            decompressed_out.write(decompressed_arg_file.read())
+		decompressed_out.write(decompressed_arg_file.read())
 	decompressed_arg_file.close()
 
 	# # transforme les fichiers decompressés en fichiers HDF5 afin qu'on puisse
@@ -41,12 +41,13 @@ def decompress_vcf(compression_type, selected_vcf):
 # Charge l'interface graphique construit en XML
 gui_window_object, gui_base_object = uic.loadUiType("MetallaxisGui.ui")
 
+
 class MetallaxisGui(gui_base_object, gui_window_object):
 	"""
 	Classe qui construit l'interface graphique Qt sur lequel repose Metallaxis
 	"""
 	def __init__(self):
-		super(gui_base_object ,self).__init__()
+		super(gui_base_object, self).__init__()
 		self.setupUi(self)
 		self.setWindowTitle("Metallaxis")
 		# boutons sur interface
@@ -55,12 +56,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.actionOpen_VCF.triggered.connect(self.select_vcf)
 
 
-	def throw_error_message(self,error_message):
+	def throw_error_message(self, error_message):
 		"""
 		Generer une dialogue d'alerte avec l'argument comme message d'alerte
 		"""
 		print("Error: " + error_message)
-		error_dialog  = QtWidgets.QMessageBox()
+		error_dialog = QtWidgets.QMessageBox()
 		error_dialog.setIcon(QMessageBox.Critical)
 		error_dialog.setWindowTitle("Error!")
 		error_dialog.setText(error_message)
@@ -88,40 +89,40 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		"""
 		select_dialog = QtWidgets.QFileDialog()
 		select_dialog.setAcceptMode(select_dialog.AcceptSave)
-		selected_vcf = select_dialog.getOpenFileName(self,filter=
-                    "VCF Files (*.vcf *.vcf.xz *.vcf.gz *.vcf.bz2)\
-                    ;;All Files(*.*)")
+		selected_vcf = select_dialog.getOpenFileName(self, filter="VCF Files (*.vcf \
+			*.vcf.xz *.vcf.gz *.vcf.bz2) ;;All Files(*.*)")
 		selected_vcf = selected_vcf[0]
 
 		# Detecte type de fichier et decompresse si compressé
 		try:
-				# utilise "magic" pour determiner si compressé ou non car .vcf
-				# dans le nom ne veut pas forcement dire le bon format
-				arg_file_type = magic.from_file(selected_vcf)
+			# utilise "magic" pour determiner si compressé ou non car .vcf
+			# dans le nom ne veut pas forcement dire le bon format
+			arg_file_type = magic.from_file(selected_vcf)
 		except FileNotFoundError:
-				# catch erreur si fichier n'existe pas
-				self.throw_error_message("ERROR: Selected file does not \
-							 exist. You specified : " + str(selected_vcf))
+			# catch erreur si fichier n'existe pas
+			self.throw_error_message("ERROR: Selected file does not \
+				exist. You specified : " + str(selected_vcf))
 
 		# Decompresse fichiers selectionées en fichiers h5
 		if "XZ" in arg_file_type:
-				self.detected_filetype_label.setText("xz compressed VCF")
-				h5_input = decompress_vcf("lzma",selected_vcf)
+			self.detected_filetype_label.setText("xz compressed VCF")
+			decompress_vcf("lzma", selected_vcf)
 
 		elif "bzip2" in arg_file_type:
-				self.detected_filetype_label.setText("bz2 compressed VCF")
-				h5_input = decompress_vcf("bz2",selected_vcf)
+			self.detected_filetype_label.setText("bz2 compressed VCF")
+			decompress_vcf("bz2", selected_vcf)
 
 		elif "gzip" in arg_file_type:
-				self.detected_filetype_label.setText("gz compressed VCF")
-				h5_input = decompress_vcf("gzip",selected_vcf)
+			self.detected_filetype_label.setText("gz compressed VCF")
+			decompress_vcf("gzip", selected_vcf)
 
 		elif "Variant Call Format" in arg_file_type:
-				self.detected_filetype_label.setText("uncompressed VCF")
-				h5_input = decompress_vcf("",selected_vcf)
+			self.detected_filetype_label.setText("uncompressed VCF")
+			decompress_vcf("", selected_vcf)
 		else:
-				self.throw_error_message("Error: Selected file must be a VCF file")
-				return 1
+			self.throw_error_message("Error: Selected file must be a VCF file")
+			return 1
+
 		# active les widgets qui sont desactivés tant qu'on a pas de VCF selectioné
 		self.loaded_vcf_lineedit.setText(selected_vcf)
 		self.loaded_vcf_lineedit.setEnabled(True)
@@ -133,14 +134,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# effacer espace metadonées (utile si on charge un fichier apres un autre)
 		self.empty_qt_layout(self.dynamic_metadata_label_results)
 		self.empty_qt_layout(self.dynamic_metadata_label_tags)
-		self.viewer_tab_table_widget.setRowCount(0) # supprime tout les lignes
+		self.viewer_tab_table_widget.setRowCount(0)  # supprime tout les lignes
 
-
-		# Obtenir Metadonnées à partir du header du fichier VCF:
-		##source=Tangram
-		##ALT=<ID=INS:ME:AL,Description="Insertion of ALU element">
-		##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
-
+# Obtenir Metadonnées à partir du header du fichier VCF:
+##source=Tangram
+##ALT=<ID=INS:ME:AL,Description="Insertion of ALU element">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
 		metadata_dict = {}
 		# Match des groupes des deux cotés du "=", apres un "##"
 		regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
@@ -170,7 +169,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						metadata_type = metadata_tag
 					else:
 						metadata_type = "basic"
-					metadata_dict_entry = [metadata_type,metadata_tag, metadata_result]
+					metadata_dict_entry = [metadata_type, metadata_tag, metadata_result]
 					metadata_dict[metadata_line_nb] = metadata_dict_entry
 					metadata_line_nb += 1
 				elif line.startswith('#'):
@@ -183,10 +182,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					vcf_field_nb = 0
 					for vcf_field in line.split("\t"):
 						vcf_field = vcf_field.strip()
-						self.viewer_tab_table_widget.setItem(vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(vcf_field))
-						vcf_field_nb +=  1
+						self.viewer_tab_table_widget.setItem(
+							vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(vcf_field))
+						vcf_field_nb += 1
 					vcf_line_nb += 1
-
 
 		for metadata_line_nb in metadata_dict:
 			metadata_tag = metadata_dict[metadata_line_nb][1]
@@ -194,8 +193,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			if not metadata_tag.isupper():
 				# Generer dynamiquement du texte pour le titre et resultat pour
 				# chaque type de metadonnée non-majiscule
-				self.dynamic_metadata_label_tags.addWidget(QtWidgets.QLabel(metadata_tag, self))
-				self.dynamic_metadata_label_results.addWidget(QtWidgets.QLabel(metadata_result, self))
+				self.dynamic_metadata_label_tags.addWidget(
+					QtWidgets.QLabel(metadata_tag, self))
+				self.dynamic_metadata_label_results.addWidget(
+					QtWidgets.QLabel(metadata_result, self))
 
 
 # Si le script est executé directement, lance l'interface graphique
