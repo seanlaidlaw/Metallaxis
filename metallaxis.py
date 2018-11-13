@@ -81,6 +81,45 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				break
 			layout_widget.widget().deleteLater()
 
+	def filter_table(self):
+		"""
+		Parses user instructions to filter table and displays what it ill filter
+		"""
+		#TODO actually filter the table not just tell user what it will do one day
+		selected_filter = self.filter_box.currentText()
+		filter_text = self.filter_lineedit.text()
+		filter_text = re.sub(r"\s+", "", filter_text)
+		filter_text = filter_text.upper()
+
+		if "-" in filter_text and "," in filter_text:
+			self.throw_error_message("Please only use either comma separated values or a dash separated range")
+
+		elif "-" in filter_text:
+			dash_split_filter_text = filter_text.split("-")
+			# filtrer les valeurs nulles ou strings vides pour pas gener le comptage des item
+			dash_split_filter_text  = filter(None, dash_split_filter_text)
+			dash_split_filter_text  = list(dash_split_filter_text)
+			if len(dash_split_filter_text) == 2:
+				self.filter_text.setText("Filtering to show " + selected_filter + " from "+ str(dash_split_filter_text[0]) + " to " + str(dash_split_filter_text[1]))
+			else:
+				self.filter_text.setText(" ")
+				self.throw_error_message("Please only enter 2 values separated by a dash")
+
+		elif "," in filter_text:
+			comma_split_filter_text = filter_text.split(",")
+			# filtrer les valeurs nulles ou strings vides pour pas gener le comptage des item
+			comma_split_filter_text  = filter(None, comma_split_filter_text)
+			comma_split_filter_text  = list(comma_split_filter_text)
+			if len(comma_split_filter_text) > 0:
+                            self.filter_text.setText("Filtering to show "  + selected_filter + ": " + str(comma_split_filter_text))
+			else:
+				self.filter_text.setText(" ")
+				self.throw_error_message("Please only enter 2 values separated by a comma")
+
+		else:
+			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
+
+
 
 	def select_vcf(self):
 		"""
@@ -131,11 +170,19 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.meta_detected_filetype_label.setEnabled(True)
 		self.metadata_area_label.setEnabled(True)
 		self.viewer_tab_table_widget.setEnabled(True)
+		self.filter_table_btn.setEnabled(True)
+		self.filter_label.setEnabled(True)
+		self.filter_lineedit.setEnabled(True)
+		self.filter_box.setEnabled(True)
 
 		# effacer espace metadonées (utile si on charge un fichier apres un autre)
 		self.empty_qt_layout(self.dynamic_metadata_label_results)
 		self.empty_qt_layout(self.dynamic_metadata_label_tags)
 		self.viewer_tab_table_widget.setRowCount(0)  # supprime tout les lignes
+		# effacer chrom_filter_box
+		self.filter_box.clear()
+		self.filter_text.setText(" ")
+
 
 # Obtenir Metadonnées à partir du header du fichier VCF:
 ##source=Tangram
@@ -199,6 +246,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					QtWidgets.QLabel(metadata_tag, self))
 				self.dynamic_metadata_label_results.addWidget(
 					QtWidgets.QLabel(metadata_result, self))
+
+		# set filter_box to list column_names
+		self.filter_box.addItems(column_names)
+		self.filter_table_btn.clicked.connect(self.filter_table)
+
+
 
 
 # Si le script est executé directement, lance l'interface graphique
