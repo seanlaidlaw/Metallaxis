@@ -170,7 +170,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					else:
 						metadata_type = "basic"
 					metadata_dict_entry = [metadata_type, metadata_tag, metadata_result]
-					metadata_dict[metadata_line_nb] = metadata_dict_entry
+					if not metadata_dict_entry in metadata_dict.values():
+						metadata_dict[metadata_line_nb] = metadata_dict_entry
 					metadata_line_nb += 1
 				elif line.startswith('#'):
 					line = line.strip()
