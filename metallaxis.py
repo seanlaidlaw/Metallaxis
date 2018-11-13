@@ -102,6 +102,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			# catch erreur si fichier n'existe pas
 			self.throw_error_message("ERROR: Selected file does not \
 				exist. You specified : " + str(selected_vcf))
+			return
 
 		# Decompresse fichiers selectionées en fichiers h5
 		if "XZ" in arg_file_type:
