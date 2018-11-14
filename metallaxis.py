@@ -15,6 +15,8 @@ import allel  # pour convertir vcf en h5
 import h5py  # pour lire les fichiers h5
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox, QTableWidget, QLabel
+from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtCore import QUrl
 
 
 
@@ -54,7 +56,14 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.open_vcf_button.clicked.connect(self.select_vcf)
 		# menus sur interface
 		self.actionOpen_VCF.triggered.connect(self.select_vcf)
+		self.actionQuit.triggered.connect(self.close)
 
+		# Relier bouton "Github Page" du menu avec l'URL
+		def open_github(url):
+			url = "https://github.com/SL-LAIDLAW/Metallaxis"
+			QDesktopServices.openUrl(QtCore.QUrl(url))
+
+		self.actionGithub_Page.triggered.connect(open_github)
 
 	def throw_error_message(self, error_message):
 		"""
