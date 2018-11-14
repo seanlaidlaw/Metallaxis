@@ -4,6 +4,7 @@
 ## Importer des modules de Python Standard
 import sys
 import re
+import os
 # pour gerer les VCF compressé
 import lzma
 import bz2
@@ -13,25 +14,39 @@ import gzip
 import magic  # pour detecter type de fichier
 import allel  # pour convertir vcf en h5
 import h5py  # pour lire les fichiers h5
+# pour lire uniquement certains lignes des fichiers (reduit conso RAM)
+from itertools import islice
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox, QTableWidget, QLabel
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl
 
-
-
-def decompress_vcf(compression_type, selected_vcf):
+def decompress_vcf(compression_type, selected_vcf, headonly):
 	"""
 	Décompresse le fichier d'entrée (si compressé avec with xz/gz/bz2), et
-	retourne un fichier H5
+	retourne un objet exploitable: soit le head du fichier, soit le fichier
+	entier selon l'option headonly.
 	"""
+	# la commande open() ouvre juste le fichier, il ne le charge pas en
+	# entier ou même de tout en RAM. Ça c'est fait quand on la lis en
+	# list plus bas, où on ne lira que les 100 premiers lignes pour eviter
+	# de charger de très gros fichiers en RAM
 	if compression_type == "":
-		decompressed_arg_file = open(selected_vcf, mode="rb")
+		decompressed_file_object = open(selected_vcf, mode="rb")
 	else:
-		decompressed_arg_file = eval(compression_type).open(selected_vcf, mode="rb")
-	with open("decompressed_vcf_output.vcf", "wb") as decompressed_out:
-		decompressed_out.write(decompressed_arg_file.read())
-	decompressed_arg_file.close()
+		decompressed_file_object = eval(compression_type).open(selected_vcf, mode="rb")
+
+	if headonly is True:
+		decompressed_file_head = list(islice(decompressed_file_object, 100))
+		decompressed_file_object.close()
+		return decompressed_file_head
+	else:
+		with open("decompressed_vcf_output.vcf", "wb") as decompressed_out:
+			decompressed_out.write(decompressed_file_object.read())
+		decompressed_file_object.close()
+		return decompressed_file_object
+
+
 
 	# # transforme les fichiers decompressés en fichiers HDF5 afin qu'on puisse
 	# # analyser les VCF très gros et qui sont normalement trop gros pour pouvoir
@@ -53,9 +68,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.setupUi(self)
 		self.setWindowTitle("Metallaxis")
 		# boutons sur interface
-		self.open_vcf_button.clicked.connect(self.select_vcf)
+		self.open_vcf_button.clicked.connect(self.select_and_process)
 		# menus sur interface
-		self.actionOpen_VCF.triggered.connect(self.select_vcf)
+		self.actionOpen_VCF.triggered.connect(self.select_and_process)
 		self.actionQuit.triggered.connect(self.close)
 
 		# Relier bouton "Github Page" du menu avec l'URL
@@ -64,6 +79,31 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			QDesktopServices.openUrl(QtCore.QUrl(url))
 
 		self.actionGithub_Page.triggered.connect(open_github)
+
+		# selectionner vcf d'entrée si c'est pas fourni
+		if len(sys.argv) == 1:
+			selected_vcf = self.select_and_process()
+		elif len(sys.argv) == 2:
+			# obtenir le chemin absolue afin d'être dans les memes conditions
+			# que si on le selectionnait
+			selected_vcf = os.path.abspath(sys.argv[1])
+			self.process_vcf(selected_vcf)
+		else:
+			print("Error: Metallaxis can only take one argument, a vcf file")
+			exit(1)
+
+
+	def throw_warning_message(self, warning_message):
+		"""
+		Generer une dialogue d'avertissement avec l'argument comme message
+		"""
+		print("Warning: " + warning_message)
+		warning_dialog = QtWidgets.QMessageBox()
+		warning_dialog.setIcon(QMessageBox.Warning)
+		warning_dialog.setWindowTitle("Warning:")
+		warning_dialog.setText(warning_message)
+		warning_dialog.setStandardButtons(QMessageBox.Ok)
+		warning_dialog.exec_()
 
 	def throw_error_message(self, error_message):
 		"""
@@ -129,6 +169,132 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
 
 
+	def verify_file(self,selected_vcf):
+		"""
+		Verifer si le fichier donnée existe, et n'est pas vide.
+		Retourne True si selected_vcf est un fichier valide.
+		"""
+
+		# verifier que le fichier existe
+		if not os.path.isfile(selected_vcf):
+			self.throw_error_message("ERROR: Selected file does not \
+		exist. You specified : " + str(selected_vcf))
+			return False
+
+		# verifier que le fichier n'est pas vide
+		if not os.path.getsize(selected_vcf) > 0:
+			self.throw_error_message("ERROR: Selected file is empty. \
+		You specified : " + str(selected_vcf))
+			return False
+
+		# retourne True pour continuer
+		return True
+
+
+	def verify_vcf(self,decompressed_file_head):
+		# verify is conform to VCFv4.1 specification:
+		# The header line names the 8 fixed, mandatory columns. These columns are as follows:
+		# CHROM
+		# POS
+		# - (Integer, Required)
+		# ID
+		# - No identifier should be present in more than one data record
+		# REF
+		# - must be one of A,C,G,T,N (case insensitive). Multiple bases are permitted
+		# ALT
+		# - must be one of A,C,G,T,N (case insensitive). Multiple bases are permitted
+		# - or an angle-bracketed ID String (“<ID>”)
+		# - or a breakend replacement string as described in the section on
+		# breakends.
+		# - If there are no alternative alleles, then the missing value should be used.
+		# QUAL
+		# - float or Integer
+		# FILTER
+		# INFO
+
+		# also verify no lines start with a # after end of header
+		line_num = 0
+		variant_num = 0
+		for line in decompressed_file_head:
+			line_num = line_num + 1
+			if line.startswith(b'#'):
+				# isoler le ligne du header avec les colonnes
+				if line.startswith(b'#CHROM'):
+					# verify header is conform to vcf 4.1 spec
+					# decode byte object to utf-8 string and split by tab
+					header_line_cols = line.decode('UTF-8').split("\t")
+					# get index of each column
+					pos_col = [i for i, s in enumerate(header_line_cols) if 'POS' in s][0]
+					ref_col = [i for i, s in enumerate(header_line_cols) if 'REF' in s][0]
+					alt_col = [i for i, s in enumerate(header_line_cols) if 'ALT' in s][0]
+					qual_col = [i for i, s in enumerate(header_line_cols) if 'QUAL' in s][0]
+					# verifier que l'entete contient tous les colonnes obligatoires du VCF 4.1
+					if not all(x in header_line_cols  for x in ['#CHROM', 'POS', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO']):
+						self.throw_error_message("ERROR: VCF not valid: VCF doesn not contain all required columns")
+						return False
+
+			else:
+				split_line = line.decode('UTF-8').split("\t")
+				for col in split_line:
+					col = col.strip()
+					# verifier que le pos ne conteint que des chiffres
+					if col == split_line[pos_col]:
+						# allowed_chars = set('123456789')
+						# if not set(col).issubset(allowed_chars):
+						if not col.isdigit():
+							self.throw_error_message("ERROR: VCF not valid: column 'POS' doesn't only contain digits: " + str(col))
+							return False
+
+					elif col == split_line[ref_col]:
+						allowed_chars = set('ACGTN')
+						# verifier que REF ne contient pas autre chose que ACGTN
+						# (les seules characters authorisés selon VCF 4.1)
+						if not set(col.upper()).issubset(allowed_chars):
+							self.throw_error_message("ERROR: VCF not valid: column 'REF' doesn't only contain A,C,G,T,N: " + str(col))
+							return False
+
+					elif col == split_line[alt_col]:
+						# verifier que ALT ne contient pas autre chose que ACGTN
+						# ou un identifiant entre <> (les seules characters
+						# authorisés selon VCF 4.1)
+						if not col.startswith("<") and col.endswith(">"):
+							allowed_chars = set('ACGTN')
+							if not set(col).issubset(allowed_chars):
+								self.throw_error_message("ERROR: VCF not valid: column 'ALT' doesn't only contain A,C,G,T,N or <ID>: " + str(col))
+								return False
+
+					elif col == split_line[qual_col]:
+						# verifier que le QUAL ne contient que un entier
+						# ou un float ou un "."
+						if col.isdigit():
+							return True
+						elif col == ".":
+							return True
+						else:
+							allowed_chars = set('123456789.')
+							if not set(col).issubset(allowed_chars):
+								try:
+									float(col)
+									return True
+								except ValueError:
+									self.throw_error_message("ERROR: VCF not valid: column 'QUAL' doesn't only contain digits: " + str(col))
+									return False
+								return False
+				variant_num += 1
+
+		if variant_num == 0:
+			self.throw_error_message("ERROR: VCF is empty, there are no variants at all in this vcf, please use a different vcf")
+			return False
+		elif variant_num < 5:
+			self.throw_error_message("ERROR: VCF contains too few variants to analyse, please use a different vcf")
+			return False
+		elif variant_num > 5 and variant_num < 30:
+			self.throw_warning_message("Warning: VCF contains very few variants, only rudementary statistics can be perfomred")
+			return True
+		else:
+			# si plus de 35 variants retouner sans alerte
+			return True
+
 
 	def select_vcf(self):
 		"""
@@ -140,37 +306,62 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		selected_vcf = select_dialog.getOpenFileName(self, filter="VCF Files (*.vcf \
 			*.vcf.xz *.vcf.gz *.vcf.bz2) ;;All Files(*.*)")
 		selected_vcf = selected_vcf[0]
+		return selected_vcf
 
-		# Detecte type de fichier et decompresse si compressé
-		try:
-			# utilise "magic" pour determiner si compressé ou non car .vcf
-			# dans le nom ne veut pas forcement dire le bon format
-			arg_file_type = magic.from_file(selected_vcf)
-		except FileNotFoundError:
-			# catch erreur si fichier n'existe pas
-			self.throw_error_message("ERROR: Selected file does not \
-				exist. You specified : " + str(selected_vcf))
+
+	def process_vcf(self, selected_vcf):
+		"""
+		Effectue les verifications et analyses sur le VCF choisi
+		"""
+		# verifier que le fichier est valide, on verra s'il est un
+		# vcf valide apres décompression
+		file_is_valid = self.verify_file(selected_vcf)
+		if not file_is_valid:
 			return
 
-		# Decompresse fichiers selectionées en fichiers h5
+
+		# TODO: replace arg_file_type with something more intuitive like file_type
+		arg_file_type = magic.from_file(selected_vcf)
+		# Decompresse fichiers selectionées
 		if "XZ" in arg_file_type:
 			self.detected_filetype_label.setText("xz compressed VCF")
-			decompress_vcf("lzma", selected_vcf)
+			decompressed_file_head = decompress_vcf("lzma", selected_vcf, headonly=True)
 
 		elif "bzip2" in arg_file_type:
 			self.detected_filetype_label.setText("bz2 compressed VCF")
-			decompress_vcf("bz2", selected_vcf)
+			decompressed_file_head  = decompress_vcf("bz2", selected_vcf, headonly=True)
 
 		elif "gzip" in arg_file_type:
 			self.detected_filetype_label.setText("gz compressed VCF")
-			decompress_vcf("gzip", selected_vcf)
+			decompressed_file_head  = decompress_vcf("gzip", selected_vcf, headonly=True)
 
 		elif "Variant Call Format" in arg_file_type:
 			self.detected_filetype_label.setText("uncompressed VCF")
-			decompress_vcf("", selected_vcf)
+			decompressed_file_head  = decompress_vcf("", selected_vcf, headonly=True)
 		else:
 			self.throw_error_message("Error: Selected file must be a VCF file")
-			return 1
+			return
+
+		# now we have a returned decompressed file object verify if
+		# contents are valid vcf
+		vcf_is_valid = self.verify_vcf(decompressed_file_head)
+		if not vcf_is_valid:
+			return
+
+
+		# si le vcf est valide alors decompressons tout le fichier
+		if "XZ" in arg_file_type:
+			decompressed_file= decompress_vcf("lzma", selected_vcf, headonly=False)
+
+		elif "bzip2" in arg_file_type:
+			decompressed_file = decompress_vcf("bz2", selected_vcf, headonly=False)
+
+		elif "gzip" in arg_file_type:
+			decompressed_file = decompress_vcf("gzip", selected_vcf, headonly=False)
+
+		elif "Variant Call Format" in arg_file_type:
+			decompressed_file = decompress_vcf("", selected_vcf, headonly=False)
+
 
 		# active les widgets qui sont desactivés tant qu'on a pas de VCF selectioné
 		self.loaded_vcf_lineedit.setText(selected_vcf)
@@ -260,6 +451,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.filter_box.addItems(column_names)
 		self.filter_table_btn.clicked.connect(self.filter_table)
 
+
+	def select_and_process(self):
+		selected_vcf = self.select_vcf()
+		self.process_vcf(selected_vcf)
 
 
 
