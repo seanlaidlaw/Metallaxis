@@ -124,41 +124,67 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 	def filter_table(self):
 		"""
-		Parses user instructions to filter table and displays what it ill filter
+		Selectionne les données correspondant au filtre choisi, et les envoient
+		au fonction populate_table pour remplacer les lignes du tableau avec
+		uniquement les données qui correspondent à notre filtre.
 		"""
-		#TODO actually filter the table not just tell user what it will do one day
 		selected_filter = self.filter_box.currentText()
 		filter_text = self.filter_lineedit.text()
+		# enleve espace blanc de la requete
 		filter_text = re.sub(r"\s+", "", filter_text)
 		filter_text = filter_text.upper()
 
 		if "-" in filter_text and "," in filter_text:
 			self.throw_error_message("Please only use either comma separated values or a dash separated range")
+			return
 
+		# TODO: make this functionnable for int columns (like pos)
 		elif "-" in filter_text:
-			dash_split_filter_text = filter_text.split("-")
+			split_filter_text = filter_text.split("-")
 			# filtrer les valeurs nulles ou strings vides pour pas gener le comptage des item
-			dash_split_filter_text  = filter(None, dash_split_filter_text)
-			dash_split_filter_text  = list(dash_split_filter_text)
-			if len(dash_split_filter_text) == 2:
-				self.filter_text.setText("Filtering to show " + selected_filter + " from "+ str(dash_split_filter_text[0]) + " to " + str(dash_split_filter_text[1]))
+			split_filter_text   = filter(None, split_filter_text)
+			split_filter_text   = list(split_filter_text )
+			if len(split_filter_text) == 2:
+				self.filter_text.setText("Filtering to show " + selected_filter + " from "+ str(split_filter_text[0]) + " to " + str(split_filter_text[1]))
+				self.throw_error_message("Sorry, dash separated filters aren't currently working")
+				return
 			else:
 				self.filter_text.setText(" ")
 				self.throw_error_message("Please only enter 2 values separated by a dash")
+				return
 
 		elif "," in filter_text:
-			comma_split_filter_text = filter_text.split(",")
+			split_filter_text = filter_text.split(",")
 			# filtrer les valeurs nulles ou strings vides pour pas gener le comptage des item
-			comma_split_filter_text  = filter(None, comma_split_filter_text)
-			comma_split_filter_text  = list(comma_split_filter_text)
-			if len(comma_split_filter_text) > 0:
-                            self.filter_text.setText("Filtering to show "  + selected_filter + ": " + str(comma_split_filter_text))
+			split_filter_text  = filter(None, split_filter_text)
+			split_filter_text  = list(split_filter_text)
+			nb_filters = len(split_filter_text)
+			if nb_filters >= 2:
+				self.filter_text.setText("Filtering to show "  + selected_filter + ": " + str(split_filter_text))
+				filter_condition = ""
+				filter_iterator = 1
+				for each_filter in split_filter_text:
+					comma_filter = selected_filter + "=='" + each_filter + "'"
+					if filter_iterator < nb_filters:
+						comma_filter = comma_filter  + " or "
+					filter_condition = filter_condition + comma_filter
+					filter_iterator += 1
+
+				filtered_h5_table = pd.read_hdf('input.h5', where=filter_condition)
 			else:
 				self.filter_text.setText(" ")
-				self.throw_error_message("Please only enter 2 values separated by a comma")
+				self.throw_error_message("Please enter 2 or more values separated by a comma")
+				return
 
+		elif filter_text == "":
+			self.filter_text.setText("No Filter Selected")
+			filtered_h5_table = pd.read_hdf('input.h5')
 		else:
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
+			filter_condition = selected_filter+"==\""+filter_text+"\""
+			filtered_h5_table = pd.read_hdf('input.h5', where=filter_condition)
+
+		self.populate_table(filtered_h5_table)
 
 
 	def verify_file(self,selected_vcf):
