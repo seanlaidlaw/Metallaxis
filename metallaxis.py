@@ -12,8 +12,7 @@ import gzip
 
 # Importer les modules de tierce-partie
 import magic  # pour detecter type de fichier
-import allel  # pour convertir vcf en h5
-import h5py  # pour lire les fichiers h5
+import pandas as pd
 # pour lire uniquement certains lignes des fichiers (reduit conso RAM)
 from itertools import islice
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
@@ -47,13 +46,6 @@ def decompress_vcf(compression_type, selected_vcf, headonly):
 		return decompressed_file_object
 
 
-
-	# # transforme les fichiers decompressés en fichiers HDF5 afin qu'on puisse
-	# # analyser les VCF très gros et qui sont normalement trop gros pour pouvoir
-	# # stocker en RAM
-	# allel.vcf_to_hdf5("decompressed_vcf_output.vcf", "input_file.h5", overwrite=True)
-	# h5_input = h5py.File("input_file.h5", mode="r")
-	# return h5_input
 
 # Charge l'interface graphique construit en XML
 gui_window_object, gui_base_object = uic.loadUiType("MetallaxisGui.ui")
@@ -215,6 +207,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# also verify no lines start with a # after end of header
 		line_num = 0
 		variant_num = 0
+		global metadata_num
 		for line in decompressed_file_head:
 			line_num = line_num + 1
 			if line.startswith(b'#'):
@@ -281,6 +274,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 									return False
 								return False
 				variant_num += 1
+
+			metadata_num = int(line_num - variant_num)
 
 		if variant_num == 0:
 			self.throw_error_message("ERROR: VCF is empty, there are no variants at all in this vcf, please use a different vcf")
@@ -362,6 +357,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		elif "Variant Call Format" in arg_file_type:
 			decompressed_file = decompress_vcf("", selected_vcf, headonly=False)
 
+		h5_file = self.h5_encode(selected_vcf)
+
 
 		# active les widgets qui sont desactivés tant qu'on a pas de VCF selectioné
 		self.loaded_vcf_lineedit.setText(selected_vcf)
@@ -384,28 +381,14 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.filter_text.setText(" ")
 
 
-# Obtenir Metadonnées à partir du header du fichier VCF:
-##source=Tangram
-##ALT=<ID=INS:ME:AL,Description="Insertion of ALU element">
-##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
 		metadata_dict = {}
 		# Match des groupes des deux cotés du "=", apres un "##"
 		regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
-		with open("decompressed_vcf_output.vcf") as decompressed_out:
-			# determiner taille du table
-			table_width, table_length = 0, 0
-			for line in decompressed_out:
-				if not line.startswith('#'):
-					if table_width < len(line.split("\t")):
-						table_width = len(line.split("\t"))
-					table_length += 1
-
-		self.viewer_tab_table_widget.setRowCount(table_length)
-		self.viewer_tab_table_widget.setColumnCount(table_width)
 
 		# parser vcf decompressé dans plusieurs dictionnaires
 		with open("decompressed_vcf_output.vcf") as decompressed_out:
 			vcf_line_nb, metadata_line_nb = 0, 0
+			# # TODO: replace metadata functions with calling metadata from h5 once i store it there
 			for line in decompressed_out:
 				if line.startswith('##'):
 					metadata_tag = regex_metadata.search(line).group(1)
@@ -421,20 +404,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					if not metadata_dict_entry in metadata_dict.values():
 						metadata_dict[metadata_line_nb] = metadata_dict_entry
 					metadata_line_nb += 1
-				elif line.startswith('#'):
-					line = line.strip()
-					line = line.strip("#")
-					column_names = line.split("\t")
-					self.viewer_tab_table_widget.setHorizontalHeaderLabels(column_names)
-				else:
-					line = line.strip()
-					vcf_field_nb = 0
-					for vcf_field in line.split("\t"):
-						vcf_field = vcf_field.strip()
-						self.viewer_tab_table_widget.setItem(
-							vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(vcf_field))
-						vcf_field_nb += 1
-					vcf_line_nb += 1
 
 		for metadata_line_nb in metadata_dict:
 			metadata_tag = metadata_dict[metadata_line_nb][1]
@@ -447,14 +416,73 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				self.dynamic_metadata_label_results.addWidget(
 					QtWidgets.QLabel(metadata_result, self))
 
+		# Read H5 for actual table populating
+		complete_h5_file = pd.read_hdf('input.h5')
+		self.populate_table(complete_h5_file)
+
+
+
+	def populate_table(self, selected_h5_data):
+		# effacer tableau actuelle
+		self.viewer_tab_table_widget.setRowCount(0)
+		self.viewer_tab_table_widget.setColumnCount(0)
+
+		# Creer Tableau vide avec bonne nombre de colonnes et lignes
+		table_length = selected_h5_data.shape[0]
+		table_width = selected_h5_data.shape[1]
+
+		self.viewer_tab_table_widget.setRowCount(table_length)
+		self.viewer_tab_table_widget.setColumnCount(table_width)
+
+		self.viewer_tab_table_widget.setHorizontalHeaderLabels(column_names)
 		# set filter_box to list column_names
 		self.filter_box.addItems(column_names)
 		self.filter_table_btn.clicked.connect(self.filter_table)
+
+		# Remplir Tableau
+		vcf_line_nb = 0
+		for line in selected_h5_data.itertuples():
+			# turn tuple into a list, but exclude the first item of list
+			# because its the h5 index and not part of our original data
+			line = list(line)[1:]
+
+			vcf_field_nb = 0
+			for vcf_field in line:
+				self.viewer_tab_table_widget.setItem(
+					vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(vcf_field))
+				vcf_field_nb += 1
+			vcf_line_nb += 1
 
 
 	def select_and_process(self):
 		selected_vcf = self.select_vcf()
 		self.process_vcf(selected_vcf)
+
+
+	def h5_encode(self, selected_vcf):
+		"""
+		Lis en entier le vcf selectionné, bloc par bloc et le met dans un
+		fichier HDF5.
+		"""
+		h5_file = pd.HDFStore('input.h5',mode='w')
+		chunked_vcf = pd.read_csv(selected_vcf,
+							delim_whitespace=True,
+							skiprows= range(0,metadata_num-1),
+							chunksize=500000,
+							low_memory=False,
+							dtype=object, # make default data type an object (ie. string)
+							)
+
+		for chunk in chunked_vcf:
+			# Rename Columns
+			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
+			# TODO: allow a setting to speicify compression level
+			# TODO: remove index from here and add after all the appending
+			h5_file.append('df',chunk, index=True, data_columns=True, min_itemsize=80,complib='zlib',complevel=9)
+			global column_names
+			column_names = list(chunk.keys())
+
+		h5_file.close()
 
 
 
