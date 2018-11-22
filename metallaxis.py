@@ -16,7 +16,7 @@ import pandas as pd
 # pour lire uniquement certains lignes des fichiers (reduit conso RAM)
 from itertools import islice
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QApplication, QDialog, QMessageBox, QTableWidget, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QTableWidget, QLabel
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl
 
@@ -71,6 +71,19 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			QDesktopServices.openUrl(QtCore.QUrl(url))
 
 		self.actionGithub_Page.triggered.connect(open_github)
+
+		def open_about_tab():
+			self.tabWidget.setCurrentIndex(4)
+		# set first tab as default
+		self.tabWidget.setCurrentIndex(0)
+		# on click "About", open about tab
+		self.actionAbout.triggered.connect(open_about_tab)
+
+		self.MetallaxisSettings = MetallaxisSettings()
+		def show_settings_window():
+			self.MetallaxisSettings.show()
+
+		self.actionSettings.triggered.connect(show_settings_window)
 
 		# selectionner vcf d'entrée si c'est pas fourni
 		if len(sys.argv) == 1:
@@ -490,11 +503,14 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		Lis en entier le vcf selectionné, bloc par bloc et le met dans un
 		fichier HDF5.
 		"""
+		complevel = self.MetallaxisSettings.compression_level_spinBox.text()
+		complib = self.MetallaxisSettings.compression_comboBox.currentText()
+		h5chunksize = self.MetallaxisSettings.vcf_chunk_size.text()
 		h5_file = pd.HDFStore('input.h5',mode='w')
 		chunked_vcf = pd.read_csv(selected_vcf,
 							delim_whitespace=True,
 							skiprows= range(0,metadata_num-1),
-							chunksize=500000,
+							chunksize=int(h5chunksize),
 							low_memory=False,
 							dtype=object, # make default data type an object (ie. string)
 							)
@@ -502,14 +518,25 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		for chunk in chunked_vcf:
 			# Rename Columns
 			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
-			# TODO: allow a setting to speicify compression level
 			# TODO: remove index from here and add after all the appending
-			h5_file.append('df',chunk, index=True, data_columns=True, min_itemsize=80,complib='zlib',complevel=9)
+			h5_file.append('df',chunk, index=True, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
 			global column_names
 			column_names = list(chunk.keys())
 
 		h5_file.close()
 
+
+settings_window_object, settings_base_object = uic.loadUiType("MetallaxisSettings.ui")
+class MetallaxisSettings(settings_base_object, settings_window_object):
+	"""
+	La fenetre de pparamètres qui permet de modifier les paramètres de defaut
+	"""
+	def __init__(self):
+		super(settings_base_object, self).__init__()
+		self.setupUi(self)
+		self.setWindowTitle("Metallaxis Settings")
+		self.compression_comboBox.addItems(['zlib', 'blosc', 'bzip2', 'lzo'])
+		self.vcf_chunk_size.setText("5000")
 
 
 # Si le script est executé directement, lance l'interface graphique

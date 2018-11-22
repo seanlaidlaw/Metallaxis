@@ -30,7 +30,7 @@
        <enum>Qt::LeftToRight</enum>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>0</number>
       </property>
       <property name="usesScrollButtons">
        <bool>false</bool>
@@ -372,7 +372,7 @@
           <item>
            <widget class="QLabel" name="filter_text">
             <property name="text">
-             <string> </string>
+             <string/>
             </property>
             <property name="wordWrap">
              <bool>false</bool>
@@ -469,9 +469,10 @@
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="actionAbout_Metallaxis"/>
+    <addaction name="actionAbout"/>
     <addaction name="separator"/>
     <addaction name="actionOpen_VCF"/>
+    <addaction name="actionSettings"/>
     <addaction name="separator"/>
     <addaction name="actionExport_Report"/>
     <addaction name="separator"/>
@@ -484,6 +485,7 @@
     <addaction name="actionMetallaxis_Documentation"/>
     <addaction name="separator"/>
     <addaction name="actionGithub_Page"/>
+    <addaction name="separator"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuHelp"/>
@@ -507,10 +509,19 @@
    <property name="text">
     <string>Close</string>
    </property>
+   <property name="menuRole">
+    <enum>QAction::QuitRole</enum>
+   </property>
   </action>
-  <action name="actionAbout_Metallaxis">
+  <action name="actionAbout">
+   <property name="checkable">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>About Metallaxis</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::ApplicationSpecificRole</enum>
    </property>
   </action>
   <action name="actionExport_Report">
@@ -526,6 +537,22 @@
   <action name="actionGithub_Page">
    <property name="text">
     <string>Github Page</string>
+   </property>
+  </action>
+  <action name="actionAboutMetallaxis">
+   <property name="text">
+    <string>About Metallaxis</string>
+   </property>
+   <property name="iconText">
+    <string>About Metallaxis</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Settings</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::PreferencesRole</enum>
    </property>
   </action>
  </widget>
