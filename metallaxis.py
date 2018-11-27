@@ -520,9 +520,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
 			# TODO: remove index from here and add after all the appending
 			h5_file.append('df',chunk, index=True, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+			h5_file.append('df',chunk, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
 			global column_names
 			column_names = list(chunk.keys())
 
+		# index columns explicitly now we've finished adding data to h5
+		h5_file.create_table_index('df', columns="ID", optlevel=9, kind='full')
 		h5_file.close()
 
 
