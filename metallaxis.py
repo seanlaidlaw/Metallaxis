@@ -266,13 +266,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						return False
 
 			else:
+				# if line is not part of header, split by tab to get columns
+				# and verify each column for each line is VCFv4.1 conforming
 				split_line = line.decode('UTF-8').split("\t")
 				for col in split_line:
 					col = col.strip()
 					# verifier que le pos ne conteint que des chiffres
 					if col == split_line[pos_col]:
-						# allowed_chars = set('123456789')
-						# if not set(col).issubset(allowed_chars):
 						if not col.isdigit():
 							self.throw_error_message("ERROR: VCF not valid: column 'POS' doesn't only contain digits: " + str(col))
 							return False
@@ -299,19 +299,18 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						# verifier que le QUAL ne contient que un entier
 						# ou un float ou un "."
 						if col.isdigit():
-							return True
+							break
 						elif col == ".":
-							return True
+							break
 						else:
 							allowed_chars = set('123456789.')
 							if not set(col).issubset(allowed_chars):
 								try:
 									float(col)
-									return True
+
 								except ValueError:
 									self.throw_error_message("ERROR: VCF not valid: column 'QUAL' doesn't only contain digits: " + str(col))
 									return False
-								return False
 				variant_num += 1
 
 			metadata_num = int(line_num - variant_num)
