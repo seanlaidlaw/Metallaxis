@@ -121,10 +121,27 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			print("Error: Metallaxis can only take one argument, a vcf file")
 			exit(1)
 
+		self.post_h5_processing(complete_h5_file)
 
+	def post_h5_processing(self, complete_h5_file):
+		"""
+		function that clears the interface if it already has data,
+		then runs the populate_table() function
+		"""
+		# active les widgets qui sont desactivés tant qu'on a pas de VCF selectioné
+		self.loaded_vcf_lineedit.setEnabled(True)
+		self.loaded_vcf_label.setEnabled(True)
+		self.meta_detected_filetype_label.setEnabled(True)
+		self.metadata_area_label.setEnabled(True)
+		self.viewer_tab_table_widget.setEnabled(True)
+		self.filter_table_btn.setEnabled(True)
+		self.filter_label.setEnabled(True)
+		self.filter_lineedit.setEnabled(True)
+		self.filter_box.setEnabled(True)
+
+		# get column numbers for ID, POS, etc.
 		global column_names
 		column_names = list(complete_h5_file.keys())
-
 
 		global chrom_col, id_col, pos_col, ref_col, alt_col, qual_col
 		chrom_col = [i for i, s in enumerate(column_names) if 'CHROM' in s][0]
@@ -134,7 +151,15 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		alt_col = [i for i, s in enumerate(column_names) if 'ALT' in s][0]
 		qual_col = [i for i, s in enumerate(column_names) if 'QUAL' in s][0]
 
+		# effacer espace metadonées (utile si on charge un fichier apres un autre)
+		self.empty_qt_layout(self.dynamic_metadata_label_results)
+		self.empty_qt_layout(self.dynamic_metadata_label_tags)
+		# effacer chrom_filter_box
+		self.filter_box.clear()
+		self.filter_text.setText(" ")
+
 		self.populate_table(complete_h5_file)
+
 
 	def throw_warning_message(self, warning_message):
 		"""
@@ -437,15 +462,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		elif "Variant Call Format" in arg_file_type:
 			decompressed_file = decompress_vcf("", selected_vcf, headonly=False)
 
-		self.loaded_vcf_lineedit.setText(selected_vcf)
-		# effacer espace metadonées (utile si on charge un fichier apres un autre)
-		self.empty_qt_layout(self.dynamic_metadata_label_results)
-		self.empty_qt_layout(self.dynamic_metadata_label_tags)
-		self.viewer_tab_table_widget.setRowCount(0)  # supprime tout les lignes
-		# effacer chrom_filter_box
-		self.filter_box.clear()
-		self.filter_text.setText(" ")
-
+		self.loaded_vcf_lineedit.setText(os.path.abspath(selected_vcf))
 		metadata_dict = {}
 		# Match des groupes des deux cotés du "=", apres un "##"
 		regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
@@ -483,24 +500,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 
 	def populate_table(self, selected_h5_data):
-		# active les widgets qui sont desactivés tant qu'on a pas de VCF selectioné
-		self.loaded_vcf_lineedit.setEnabled(True)
-		self.loaded_vcf_label.setEnabled(True)
-		self.meta_detected_filetype_label.setEnabled(True)
-		self.metadata_area_label.setEnabled(True)
-		self.viewer_tab_table_widget.setEnabled(True)
-		self.filter_table_btn.setEnabled(True)
-		self.filter_label.setEnabled(True)
-		self.filter_lineedit.setEnabled(True)
-		self.filter_box.setEnabled(True)
-
-		# effacer espace metadonées (utile si on charge un fichier apres un autre)
-		self.empty_qt_layout(self.dynamic_metadata_label_results)
-		self.empty_qt_layout(self.dynamic_metadata_label_tags)
-		self.viewer_tab_table_widget.setRowCount(0)  # supprime tout les lignes
-		# effacer chrom_filter_box
-		self.filter_box.clear()
-		self.filter_text.setText(" ")
 		# effacer tableau actuelle
 		self.viewer_tab_table_widget.setRowCount(0)
 		self.viewer_tab_table_widget.setColumnCount(0)
@@ -527,7 +526,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			vcf_field_nb = 0
 			for vcf_field in line:
 				self.viewer_tab_table_widget.setItem(
-					vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(vcf_field))
+					vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(str(vcf_field)))
 				vcf_field_nb += 1
 			vcf_line_nb += 1
 
@@ -535,6 +534,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 	def select_and_process(self):
 		selected_vcf = self.select_vcf()
 		self.process_vcf(selected_vcf)
+		h5_file = self.h5_encode(selected_vcf)
+		complete_h5_file = pd.read_hdf(h5_file)
+		self.post_h5_processing(complete_h5_file)
 
 
 	def h5_encode(self, selected_vcf):
