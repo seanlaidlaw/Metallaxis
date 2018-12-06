@@ -114,15 +114,21 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# function that'll enable or disable the "annotation" checkbox
 		self.MetallaxisSettings.annotate_species_comboBox.currentTextChanged.connect(self.changed_species_combobox)
 
+		# Tempory file names
+		global h5_output_name, annotated_h5_output_name
+		h5_output_name = 'input.h5'
+		annotated_h5_output_name = 'input_annotated.h5'
+
+
 		# obtenir vcf d'entrée
 		self.progress_bar(2,"Parsing arguments")
 		h5_only = False
 		if len(sys.argv) == 1:
 			selected_vcf = self.select_vcf()
 			metadata_dict = self.process_vcf(selected_vcf)
-			h5_file = self.h5_encode(selected_vcf)
+			h5_file = self.h5_encode(selected_vcf, metadata_dict=metadata_dict)
 			# Read H5 for actual table populating
-			complete_h5_file = pd.read_hdf(h5_file)
+			complete_h5_file = pd.read_hdf(h5_file, key="df",)
 		elif len(sys.argv) == 2:
 			if sys.argv[1].endswith(".h5"):
 				# return error if h5 doesn't exist
@@ -130,17 +136,23 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					self.throw_error_message("ERROR: Selected file does not \
 				exist. You specified : " + str(sys.argv[1]))
 					return
-				complete_h5_file  = pd.read_hdf(sys.argv[1])
+				try:
+					complete_h5_file  = pd.read_hdf(sys.argv[1])
+				except ValueError:
+					complete_h5_file  = pd.read_hdf(sys.argv[1], key="df")
+
 				self.loaded_vcf_lineedit.setText(os.path.abspath(sys.argv[1]))
 				h5_only = True
+				global h5_input_name
+				h5_input_name = sys.argv[1]
 			else:
 				# obtenir le chemin absolue afin d'être dans les memes conditions
 				# que si on le selectionnait
 				selected_vcf = os.path.abspath(sys.argv[1])
 				metadata_dict = self.process_vcf(selected_vcf)
-				h5_file = self.h5_encode(selected_vcf)
+				h5_file = self.h5_encode(selected_vcf, metadata_dict=metadata_dict)
 				# Read H5 for actual table populating
-				complete_h5_file = pd.read_hdf(h5_file)
+				complete_h5_file = pd.read_hdf(h5_file,key="df")
 		else:
 			print("Error: Metallaxis can only take one argument, a vcf file")
 			exit(1)
@@ -204,10 +216,23 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						QtWidgets.QLabel(metadata_tag, self))
 					self.dynamic_metadata_label_results.addWidget(
 						QtWidgets.QLabel(metadata_result, self))
+		else:
+			for line in pd.read_hdf(h5_input_name , key="metadata").itertuples():
+				# turn tuple into a list, but exclude the first item of list
+				# because its the h5 index and not part of our original data
+				line = list(line)[1:]
+				metadata_tag = line[0]
+				metadata_result = line[1]
+				self.dynamic_metadata_label_tags.addWidget(
+					QtWidgets.QLabel(metadata_tag, self))
+				self.dynamic_metadata_label_results.addWidget(
+					QtWidgets.QLabel(metadata_result, self))
+
+
 		if self.MetallaxisSettings.annotation_checkbox.isChecked():
 			if h5_only is not True:
 				complete_h5_file = self.annotate_h5(complete_h5_file, selected_vcf)
-				complete_h5_file = pd.read_hdf(complete_h5_file , where="ID!='.'")
+				complete_h5_file = pd.read_hdf(complete_h5_file, key="df", where="ID!='.'")
 
 
 		self.populate_table(complete_h5_file)
@@ -299,9 +324,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					filter_iterator += 1
 
 				if self.MetallaxisSettings.annotation_checkbox.isChecked():
-					filtered_h5_table = pd.read_hdf('input_annotated.h5', where=filter_condition)
+					filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df", where=filter_condition)
 				else:
-					filtered_h5_table = pd.read_hdf('input.h5', where=filter_condition)
+					filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
 
 			else:
 				self.filter_text.setText(" ")
@@ -310,11 +335,11 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		elif filter_text == "":
 			self.filter_text.setText("No Filter Selected")
-			filtered_h5_table = pd.read_hdf('input.h5')
+			filtered_h5_table = pd.read_hdf(h5_output_name, key="df",)
 		else:
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
 			filter_condition = selected_filter+"==\""+filter_text+"\""
-			filtered_h5_table = pd.read_hdf('input.h5', where=filter_condition)
+			filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
 
 		self.populate_table(filtered_h5_table)
 
@@ -534,7 +559,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# parser vcf decompressé dans plusieurs dictionnaires
 		with open("decompressed_vcf_output.vcf") as decompressed_out:
 			vcf_line_nb, metadata_line_nb = 0, 0
-			# # TODO: replace metadata functions with calling metadata from h5 once i store it there
 			for line in decompressed_out:
 				if line.startswith('##'):
 					metadata_tag = regex_metadata.search(line).group(1)
@@ -574,11 +598,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		vcf_line_nb = 0
 		annotate_percent = 80
 		for line in selected_h5_data.itertuples():
-			# only update progress bar every 20 lines to avoid performance hit
-			# from doing it every line
-			if vcf_line_nb % 20 == 0:
-				annotate_progress = annotate_percent + (vcf_line_nb / table_length) * (100 - annotate_percent)
-				self.progress_bar(float(annotate_progress), "Populating Table from H5")
+			if table_length >= 1000:
+				# only update progress bar every 300 lines to avoid performance hit
+				# from doing it every line
+				if vcf_line_nb % 300 == 0:
+					annotate_progress = annotate_percent + (vcf_line_nb / table_length) * (100 - annotate_percent)
+					self.progress_bar(float(annotate_progress), "Populating Table from H5")
+
 			# turn tuple into a list, but exclude the first item of list
 			# because its the h5 index and not part of our original data
 			line = list(line)[1:]
@@ -603,18 +629,27 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.MetallaxisProgress = MetallaxisProgress()
 		self.MetallaxisProgress.show()
 		metadata_dict = self.process_vcf(selected_vcf)
-		h5_file = self.h5_encode(selected_vcf)
-		complete_h5_file = pd.read_hdf(h5_file)
+		h5_file = self.h5_encode(selected_vcf, metadata_dict=metadata_dict)
+		complete_h5_file = pd.read_hdf(h5_file, key="df",)
 		self.post_h5_processing(complete_h5_file, h5_only, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
 
 
-	def h5_encode(self, selected_vcf):
+	def h5_encode(self, selected_vcf, metadata_dict=None):
 		"""
 		Lis en entier le vcf selectionné, bloc par bloc et le met dans un
 		fichier HDF5.
 		"""
-		h5_filename = 'input.h5'
-		h5_file = pd.HDFStore(h5_filename,mode='w')
+		h5_file = pd.HDFStore(h5_output_name ,mode='w')
+
+		for metadata_line_nb in metadata_dict:
+			metadata_tag = metadata_dict[metadata_line_nb][1]
+			metadata_result = metadata_dict[metadata_line_nb][2]
+			if not metadata_tag.isupper():
+				metadata_line = {'Tag':metadata_tag,'Result':metadata_result}
+				metadata_line = pd.DataFrame(metadata_line, index=[metadata_line_nb])
+				h5_file.append('metadata', metadata_line, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+
+
 		chunked_vcf_len = sum(1 for row in open(selected_vcf,'r'))
 		chunked_vcf = pd.read_csv(selected_vcf,
 							delim_whitespace=True,
@@ -652,7 +687,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.progress_bar(46, "Indexing H5 database")
 		h5_file.create_table_index('df', columns=True, optlevel=9, kind='full')
 		h5_file.close()
-		return h5_filename
+		return h5_output_name
 
 
 	def changed_species_combobox(self):
@@ -682,8 +717,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
 		api_ids = []
-		selected_h5_data = pd.read_hdf('input.h5', where="ID!='.'")
-		annotated_h5_name = 'input_annotated.h5'
+		selected_h5_data = pd.read_hdf(h5_output_name, key="df", where="ID!='.'")
 
 		for line in selected_h5_data.itertuples():
 			# turn tuple into a list, but exclude the first item of list
@@ -693,7 +727,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			line_id = line[id_col]
 			api_ids.append(line_id)
 
-		annotated_h5 = pd.HDFStore(annotated_h5_name,mode='w')
+		annotated_h5 = pd.HDFStore(annotated_h5_output_name ,mode='w')
 		annotated_row_ids = []
 
 		# divide api_ids list into sublist as api has a max length
@@ -733,7 +767,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						api_id = data['id']
 						api_alt = subdata['variant_allele']
 
-						selected_h5_row = pd.read_hdf('input.h5', where=("ID=='" + api_id + "' and ALT=='" + api_alt + "'"))
+						selected_h5_row = pd.read_hdf(h5_output_name, key="df", where=("ID=='" + api_id + "' and ALT=='" + api_alt + "'"))
 						selected_h5_row['IMPACT'] = str(subdata['impact'])
 						# show upto 3 consequence terms
 						if len(subdata['consequence_terms']) >= 3:
@@ -787,7 +821,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.progress_bar(80,"Indexing annotated H5")
 		annotated_h5.create_table_index('df', columns=True, optlevel=9, kind='full')
 		annotated_h5.close()
-		return annotated_h5_name
+		return annotated_h5_output_name
 
 
 	def progress_bar(self,percent,message):
