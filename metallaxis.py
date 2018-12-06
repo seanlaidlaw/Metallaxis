@@ -5,6 +5,8 @@
 import sys
 import re
 import os
+import json
+import requests
 # pour gerer les VCF compressé
 import lzma
 import bz2
@@ -73,7 +75,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.actionGithub_Page.triggered.connect(open_github)
 
 		def open_about_tab():
-			self.tabWidget.setCurrentIndex(4)
+			self.tabWidget.setCurrentIndex(3)
 		# set first tab as default
 		self.tabWidget.setCurrentIndex(0)
 		# on click "About", open about tab
@@ -84,6 +86,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			self.MetallaxisSettings.show()
 
 		self.actionSettings.triggered.connect(show_settings_window)
+		self.MetallaxisSettings.annotate_species_comboBox.addItems(['Other', 'Human'])
 
 		# convert gui settings to global variables
 		global complevel, complib, h5chunksize
@@ -91,7 +94,11 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		complib = self.MetallaxisSettings.compression_comboBox.currentText()
 		h5chunksize = self.MetallaxisSettings.vcf_chunk_size.text()
 
-		# selectionner vcf d'entrée si c'est pas fourni
+		# on changing Species combobox in Settings, run the changed_species_combobox
+		# function that'll enable or disable the "annotation" checkbox
+		self.MetallaxisSettings.annotate_species_comboBox.currentTextChanged.connect(self.changed_species_combobox)
+
+		# obtenir vcf d'entrée
 		h5_only = False
 		if len(sys.argv) == 1:
 			selected_vcf = self.select_vcf()
@@ -121,12 +128,14 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			print("Error: Metallaxis can only take one argument, a vcf file")
 			exit(1)
 
-		self.post_h5_processing(complete_h5_file)
+		self.post_h5_processing(complete_h5_file, h5_only)
 
-	def post_h5_processing(self, complete_h5_file):
+	def post_h5_processing(self, complete_h5_file, h5_only, selected_vcf=None):
 		"""
 		function that clears the interface if it already has data,
-		then runs the populate_table() function
+		then runs the annotate_h5() populate_table() functions. Requires h5
+		read object, h5 only boolean and optionally takes selected_vcf string
+		if annotation is chosen.
 		"""
 		# active les widgets qui sont desactivés tant qu'on a pas de VCF selectioné
 		self.loaded_vcf_lineedit.setEnabled(True)
@@ -157,6 +166,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# effacer chrom_filter_box
 		self.filter_box.clear()
 		self.filter_text.setText(" ")
+
+		if self.MetallaxisSettings.annotation_checkbox.isChecked():
+			if h5_only is not True:
+				complete_h5_file = self.annotate_h5(complete_h5_file, selected_vcf)
+				complete_h5_file = pd.read_hdf(complete_h5_file , where="ID!='.'")
+
 
 		self.populate_table(complete_h5_file)
 
@@ -246,7 +261,11 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					filter_condition = filter_condition + comma_filter
 					filter_iterator += 1
 
-				filtered_h5_table = pd.read_hdf('input.h5', where=filter_condition)
+				if self.MetallaxisSettings.annotation_checkbox.isChecked():
+					filtered_h5_table = pd.read_hdf('input_annotated.h5', where=filter_condition)
+				else:
+					filtered_h5_table = pd.read_hdf('input.h5', where=filter_condition)
+
 			else:
 				self.filter_text.setText(" ")
 				self.throw_error_message("Please enter 2 or more values separated by a comma")
@@ -536,11 +555,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 
 	def select_and_process(self):
+		# this method only allows selection of vcfs so set h5_only to false
+		h5_only = False
 		selected_vcf = self.select_vcf()
 		self.process_vcf(selected_vcf)
 		h5_file = self.h5_encode(selected_vcf)
 		complete_h5_file = pd.read_hdf(h5_file)
-		self.post_h5_processing(complete_h5_file)
+		self.post_h5_processing(complete_h5_file, h5_only, selected_vcf=selected_vcf)
 
 
 	def h5_encode(self, selected_vcf):
@@ -561,12 +582,140 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		for chunk in chunked_vcf:
 			# Rename Columns
 			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
+			if self.MetallaxisSettings.annotation_checkbox.isChecked():
+				chunk['IMPACT']="."
+				chunk['GENE_SYMBOL']="."
+				chunk['CONSEQUENCE_TERMS_1']="."
+				chunk['CONSEQUENCE_TERMS_2']="."
+				chunk['CONSEQUENCE_TERMS_3']="."
+				chunk['GENE_ID']="."
+				chunk['BIOTYPE']="."
 			h5_file.append('df',chunk, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
 
 		# index columns explicitly now we've finished adding data to h5
-		h5_file.create_table_index('df', columns="ID", optlevel=9, kind='full')
+		h5_file.create_table_index('df', columns=True, optlevel=9, kind='full')
 		h5_file.close()
 		return h5_filename
+
+
+	def changed_species_combobox(self):
+		"""
+		Deactivates checkbox for VCF annotation if a species other than 'Human'
+		is selected, as only human VCFs can be annotated without changing EBI
+		VEP API settings.
+		"""
+		vcf_species = self.MetallaxisSettings.annotate_species_comboBox.currentText()
+		if vcf_species != 'Human':
+			self.MetallaxisSettings.annotation_checkbox.setChecked(False)
+			self.MetallaxisSettings.annotation_checkbox.setEnabled(False)
+			self.MetallaxisSettings.annotate_vcf_label.setEnabled(False)
+		else:
+			self.MetallaxisSettings.annotation_checkbox.setEnabled(True)
+			self.MetallaxisSettings.annotate_vcf_label.setEnabled(True)
+
+
+
+
+	def annotate_h5(self, selected_h5_data, selected_vcf):
+		"""
+		Uses EBI's VEP API to annotate lines where ID is valid
+		"""
+		ebi_rest_api = "https://rest.ensembl.org"
+		ext = "/vep/human/id/"
+		headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+		api_ids = []
+		selected_h5_data = pd.read_hdf('input.h5', where="ID!='.'")
+		annotated_h5_name = 'input_annotated.h5'
+
+		for line in selected_h5_data.itertuples():
+			# turn tuple into a list, but exclude the first item of list
+			# because its the h5 index and not part of our original data
+			line = list(line)[1:]
+			# get the id from id_column and add it to api_ids list
+			line_id = line[id_col]
+			api_ids.append(line_id)
+
+		annotated_h5 = pd.HDFStore(annotated_h5_name,mode='w')
+		annotated_row_ids = []
+
+		# divide api_ids list into sublist as api has a max length
+		annotate_nb = 0
+		annotate_percent = 55
+		for i in range(0, len(api_ids), 50):
+			api_ids_sublist = api_ids[i:i + 50]
+
+			formatted_api_ids_sublist = ','.join('"{0}"'.format(ind_id)
+				for ind_id in api_ids_sublist)
+			formatted_api_ids_sublist = '{ "ids" : [' + \
+				formatted_api_ids_sublist + '] }'
+			api_call = requests.post(ebi_rest_api + ext, headers=headers,
+				data=formatted_api_ids_sublist)
+
+
+			if not api_call.ok:
+				self.throw_error_message("ERROR: API call failed")
+				api_call.raise_for_status()
+				return
+
+			vep_json = json.loads(api_call.text)
+
+
+			for data in vep_json:
+				# if returned JSON has a transcript_consequence extract its
+				# data and add to h5 file
+				if data.get('transcript_consequences'):
+					for subdata in data['transcript_consequences']:
+						annotate_progress = annotate_percent + (annotate_nb / (len(api_ids) * len(data))) * (75 - annotate_percent)
+						# get h5 row from id and add JSON data to it and add it to h5
+						api_id = data['id']
+						api_alt = subdata['variant_allele']
+
+						selected_h5_row = pd.read_hdf('input.h5', where=("ID=='" + api_id + "' and ALT=='" + api_alt + "'"))
+						selected_h5_row['IMPACT'] = str(subdata['impact'])
+						# show upto 3 consequence terms
+						if len(subdata['consequence_terms']) >= 3:
+							selected_h5_row['CONSEQUENCE_TERMS_3'] = str(subdata['consequence_terms'][2])
+						else:
+							selected_h5_row['CONSEQUENCE_TERMS_3'] = "."
+						if len(subdata['consequence_terms']) >= 2:
+							selected_h5_row['CONSEQUENCE_TERMS_2'] = str(subdata['consequence_terms'][1])
+						else:
+							selected_h5_row['CONSEQUENCE_TERMS_3'] = "."
+						selected_h5_row['CONSEQUENCE_TERMS_1'] = str(subdata['consequence_terms'][0])
+						selected_h5_row['GENE_ID'] = str(subdata['gene_id'])
+						selected_h5_row['GENE_SYMBOL'] = str(subdata['gene_symbol'])
+						selected_h5_row['BIOTYPE'] = str(subdata['biotype'])
+						annotated_h5.append('df',selected_h5_row, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+						annotated_row_ids.append(api_id)
+						annotate_nb += 1
+
+		chunked_vcf = pd.read_csv(selected_vcf,
+							delim_whitespace=True,
+							skiprows= range(0,metadata_num-1),
+							chunksize=1,
+							low_memory=False,
+							dtype=object, # make default data type an object (ie. string)
+							)
+
+		for chunk in chunked_vcf:
+			# Rename Columns
+			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
+			chunk_id = str(chunk['ID'].iloc[0])
+			if chunk_id != ".":
+				if chunk_id not in annotated_row_ids:
+					chunk['IMPACT']="."
+					chunk['GENE_SYMBOL']="."
+					chunk['CONSEQUENCE_TERMS_1']="."
+					chunk['CONSEQUENCE_TERMS_2']="."
+					chunk['CONSEQUENCE_TERMS_3']="."
+					chunk['GENE_ID']="."
+					chunk['BIOTYPE']="."
+					annotated_h5.append('df',chunk, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+
+		annotated_h5.create_table_index('df', columns=True, optlevel=9, kind='full')
+		annotated_h5.close()
+		return annotated_h5_name
 
 
 settings_window_object, settings_base_object = uic.loadUiType("MetallaxisSettings.ui")
