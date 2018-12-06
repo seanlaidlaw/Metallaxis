@@ -581,12 +581,18 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				vcf_field_nb += 1
 			vcf_line_nb += 1
 		self.progress_bar(100,"Populating Table...done")
+		# close progress bar when file is completely loaded
+		self.MetallaxisProgress.close()
+
 
 
 	def select_and_process(self):
 		# this method only allows selection of vcfs so set h5_only to false
 		h5_only = False
 		selected_vcf = self.select_vcf()
+		# reopen progress bar for loading new file
+		self.MetallaxisProgress = MetallaxisProgress()
+		self.MetallaxisProgress.show()
 		self.process_vcf(selected_vcf)
 		h5_file = self.h5_encode(selected_vcf)
 		complete_h5_file = pd.read_hdf(h5_file)
