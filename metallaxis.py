@@ -189,6 +189,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.filter_box.clear()
 		self.filter_text.setText(" ")
 
+		# set filter_box to list column_names
+		self.filter_box.addItems(column_names)
+		self.filter_table_btn.clicked.connect(self.filter_table)
+
 		if not h5_only:
 			for metadata_line_nb in metadata_dict:
 				metadata_tag = metadata_dict[metadata_line_nb][1]
@@ -564,9 +568,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.viewer_tab_table_widget.setColumnCount(table_width)
 
 		self.viewer_tab_table_widget.setHorizontalHeaderLabels(column_names)
-		# set filter_box to list column_names
-		self.filter_box.addItems(column_names)
-		self.filter_table_btn.clicked.connect(self.filter_table)
+
 
 		# Remplir Tableau
 		vcf_line_nb = 0
