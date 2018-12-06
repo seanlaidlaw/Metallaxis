@@ -405,6 +405,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		selected_vcf = select_dialog.getOpenFileName(self, filter="VCF Files (*.vcf \
 			*.vcf.xz *.vcf.gz *.vcf.bz2) ;;All Files(*.*)")
 		selected_vcf = selected_vcf[0]
+		# if the user cancels the select_vcf() dialog, then run select again
+		while selected_vcf == "":
+			self.throw_error_message("ERROR: No selected file")
+			selected_vcf = self.select_vcf()
 		return selected_vcf
 
 
