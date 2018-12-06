@@ -5,6 +5,7 @@
 import sys
 import re
 import os
+import tracemalloc
 import json
 import requests
 # pour gerer les VCF compressé
@@ -18,9 +19,13 @@ import pandas as pd
 # pour lire uniquement certains lignes des fichiers (reduit conso RAM)
 from itertools import islice
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QTableWidget, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QProgressBar, QTableWidget, QLabel
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl
+
+import time
+start_time = time.time()
+
 
 def decompress_vcf(compression_type, selected_vcf, headonly):
 	"""
@@ -61,6 +66,17 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		super(gui_base_object, self).__init__()
 		self.setupUi(self)
 		self.setWindowTitle("Metallaxis")
+		# initalise progress bar
+		self.MetallaxisProgress = MetallaxisProgress()
+		self.MetallaxisProgress.show()
+
+		# start mesuring memory
+		tracemalloc.start()
+		global normal_mem
+		normal_mem = tracemalloc.take_snapshot()
+
+
+		self.progress_bar(1,"setting up gui")
 		# boutons sur interface
 		self.open_vcf_button.clicked.connect(self.select_and_process)
 		# menus sur interface
@@ -99,6 +115,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.MetallaxisSettings.annotate_species_comboBox.currentTextChanged.connect(self.changed_species_combobox)
 
 		# obtenir vcf d'entrée
+		self.progress_bar(2,"Parsing arguments")
 		h5_only = False
 		if len(sys.argv) == 1:
 			selected_vcf = self.select_vcf()
@@ -149,6 +166,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.filter_box.setEnabled(True)
 
 		# get column numbers for ID, POS, etc.
+		self.progress_bar(47,"Extracting column data")
 		global column_names
 		column_names = list(complete_h5_file.keys())
 
@@ -287,6 +305,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		Verifer si le fichier donnée existe, et n'est pas vide.
 		Retourne True si selected_vcf est un fichier valide.
 		"""
+		self.progress_bar(3,"Verifying VCF: verifying that file is valid")
 
 		# verifier que le fichier existe
 		if not os.path.isfile(selected_vcf):
@@ -305,6 +324,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 
 	def verify_vcf(self,decompressed_file_head):
+		self.progress_bar(8,"Verifying VCF: verifying that VCF is valid")
 		# verify is conform to VCFv4.1 specification:
 		# The header line names the 8 fixed, mandatory columns. These columns are as follows:
 		# CHROM
@@ -472,6 +492,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			return
 
 
+		self.progress_bar(9,"Decompressing VCF")
 		# si le vcf est valide alors decompressons tout le fichier
 		if "XZ" in arg_file_type:
 			decompressed_file= decompress_vcf("lzma", selected_vcf, headonly=False)
@@ -490,6 +511,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# Match des groupes des deux cotés du "=", apres un "##"
 		regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
 
+		self.progress_bar(10,"Extracting VCF metadata")
 		# parser vcf decompressé dans plusieurs dictionnaires
 		with open("decompressed_vcf_output.vcf") as decompressed_out:
 			vcf_line_nb, metadata_line_nb = 0, 0
@@ -541,7 +563,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		# Remplir Tableau
 		vcf_line_nb = 0
+		annotate_percent = 80
 		for line in selected_h5_data.itertuples():
+			# only update progress bar every 20 lines to avoid performance hit
+			# from doing it every line
+			if vcf_line_nb % 20 == 0:
+				annotate_progress = annotate_percent + (vcf_line_nb / table_length) * (100 - annotate_percent)
+				self.progress_bar(float(annotate_progress), "Populating Table from H5")
 			# turn tuple into a list, but exclude the first item of list
 			# because its the h5 index and not part of our original data
 			line = list(line)[1:]
@@ -552,6 +580,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(str(vcf_field)))
 				vcf_field_nb += 1
 			vcf_line_nb += 1
+		self.progress_bar(100,"Populating Table...done")
 
 
 	def select_and_process(self):
@@ -571,6 +600,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		"""
 		h5_filename = 'input.h5'
 		h5_file = pd.HDFStore(h5_filename,mode='w')
+		chunked_vcf_len = sum(1 for row in open(selected_vcf,'r'))
 		chunked_vcf = pd.read_csv(selected_vcf,
 							delim_whitespace=True,
 							skiprows= range(0,metadata_num-1),
@@ -578,6 +608,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 							low_memory=False,
 							dtype=object, # make default data type an object (ie. string)
 							)
+		annotate_nb = 0
+		annotate_percent = 35
 
 		for chunk in chunked_vcf:
 			# Rename Columns
@@ -590,9 +622,19 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				chunk['CONSEQUENCE_TERMS_3']="."
 				chunk['GENE_ID']="."
 				chunk['BIOTYPE']="."
-			h5_file.append('df',chunk, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+
+			# only update progress bar every 20 lines to avoid performance hit
+			# from doing it every line
+			if annotate_nb % 20 == 0:
+				annotate_progress = annotate_percent + (annotate_nb / chunked_vcf_len)  * (43 - annotate_percent)
+				self.progress_bar(float(annotate_progress), "Encoding H5 database")
+			h5_file.append('df', chunk, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+			annotate_nb += 1
+
+
 
 		# index columns explicitly now we've finished adding data to h5
+		self.progress_bar(46, "Indexing H5 database")
 		h5_file.create_table_index('df', columns=True, optlevel=9, kind='full')
 		h5_file.close()
 		return h5_filename
@@ -666,7 +708,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				# data and add to h5 file
 				if data.get('transcript_consequences'):
 					for subdata in data['transcript_consequences']:
-						annotate_progress = annotate_percent + (annotate_nb / (len(api_ids) * len(data))) * (75 - annotate_percent)
+						# only update progress bar every 20 lines to avoid performance hit
+						# from doing it every line
+						if annotate_nb % 20 == 0:
+							annotate_len = (len(api_ids) * len(data))
+							annotate_progress = annotate_percent + (annotate_nb / annotate_len ) * (70 - annotate_percent)
+							self.progress_bar(float(annotate_progress), "Annotate H5: writing annotated chunk to h5")
 						# get h5 row from id and add JSON data to it and add it to h5
 						api_id = data['id']
 						api_alt = subdata['variant_allele']
@@ -686,10 +733,11 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						selected_h5_row['GENE_ID'] = str(subdata['gene_id'])
 						selected_h5_row['GENE_SYMBOL'] = str(subdata['gene_symbol'])
 						selected_h5_row['BIOTYPE'] = str(subdata['biotype'])
-						annotated_h5.append('df',selected_h5_row, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+						annotated_h5.append('df', selected_h5_row, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
 						annotated_row_ids.append(api_id)
 						annotate_nb += 1
 
+		chunked_vcf_len = sum(1 for row in open(selected_vcf,'r'))
 		chunked_vcf = pd.read_csv(selected_vcf,
 							delim_whitespace=True,
 							skiprows= range(0,metadata_num-1),
@@ -698,6 +746,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 							dtype=object, # make default data type an object (ie. string)
 							)
 
+		annotate_nb = 0
+		annotate_percent = 70
 		for chunk in chunked_vcf:
 			# Rename Columns
 			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
@@ -712,10 +762,49 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					chunk['GENE_ID']="."
 					chunk['BIOTYPE']="."
 					annotated_h5.append('df',chunk, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+					# only update progress bar every 20 lines to avoid
+					# performance hit from doing it every line
+					if annotate_nb % 20 == 0:
+						annotate_progress = annotate_percent + (annotate_nb / chunked_vcf_len) * (80 - annotate_percent)
+						self.progress_bar(float(annotate_progress), "Annotate H5: writing non-annotated chunk to h5")
+					annotate_nb += 1
 
+		self.progress_bar(80,"Indexing annotated H5")
 		annotated_h5.create_table_index('df', columns=True, optlevel=9, kind='full')
 		annotated_h5.close()
 		return annotated_h5_name
+
+
+	def progress_bar(self,percent,message):
+		"""docstring for progress_bar"""
+		self.MetallaxisProgress.progressbar_message.setText(message)
+		percent = round(percent, 2)
+		self.MetallaxisProgress.progressbar_progress.setValue(percent)
+
+		snapshot2 = tracemalloc.take_snapshot()
+		mem_usage = sum(stat.size for stat in snapshot2.statistics('lineno'))
+		mem_usage_mb = round(mem_usage/1000000, 2)
+		mem_usage_mb =("%s" % (mem_usage_mb))
+
+		time_secs = str(round((time.time() - start_time),2))
+
+		self.MetallaxisProgress.progressbar_ram_usage.setText(mem_usage_mb)
+		self.MetallaxisProgress.progressbar_time.setText(time_secs)
+		print(str(percent) + "% : " + message + " | Time: "+ time_secs + " \
+		| RAM (MB): " + mem_usage_mb)
+		MetallaxisApp.processEvents()  # refresh the gui
+
+
+
+progress_window_object, progress_base_object = uic.loadUiType("MetallaxisProgress.ui")
+class MetallaxisProgress(progress_base_object, progress_window_object):
+	"""
+	Status bar that shows progress when opening files with Metallaxis
+	"""
+	def __init__(self):
+		super(progress_base_object, self).__init__()
+		self.setupUi(self)
+		self.setWindowTitle("Metallaxis")
 
 
 settings_window_object, settings_base_object = uic.loadUiType("MetallaxisSettings.ui")
