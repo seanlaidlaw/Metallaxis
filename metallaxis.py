@@ -119,7 +119,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		h5_only = False
 		if len(sys.argv) == 1:
 			selected_vcf = self.select_vcf()
-			self.process_vcf(selected_vcf)
+			metadata_dict = self.process_vcf(selected_vcf)
 			h5_file = self.h5_encode(selected_vcf)
 			# Read H5 for actual table populating
 			complete_h5_file = pd.read_hdf(h5_file)
@@ -137,7 +137,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				# obtenir le chemin absolue afin d'être dans les memes conditions
 				# que si on le selectionnait
 				selected_vcf = os.path.abspath(sys.argv[1])
-				self.process_vcf(selected_vcf)
+				metadata_dict = self.process_vcf(selected_vcf)
 				h5_file = self.h5_encode(selected_vcf)
 				# Read H5 for actual table populating
 				complete_h5_file = pd.read_hdf(h5_file)
@@ -145,9 +145,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			print("Error: Metallaxis can only take one argument, a vcf file")
 			exit(1)
 
-		self.post_h5_processing(complete_h5_file, h5_only)
+		if h5_only:
+			self.post_h5_processing(complete_h5_file, h5_only)
+		else:
+			self.post_h5_processing(complete_h5_file, h5_only, metadata_dict=metadata_dict)
 
-	def post_h5_processing(self, complete_h5_file, h5_only, selected_vcf=None):
+	def post_h5_processing(self, complete_h5_file, h5_only, metadata_dict=None, selected_vcf=None):
 		"""
 		function that clears the interface if it already has data,
 		then runs the annotate_h5() populate_table() functions. Requires h5
@@ -181,10 +184,22 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# effacer espace metadonées (utile si on charge un fichier apres un autre)
 		self.empty_qt_layout(self.dynamic_metadata_label_results)
 		self.empty_qt_layout(self.dynamic_metadata_label_tags)
+
 		# effacer chrom_filter_box
 		self.filter_box.clear()
 		self.filter_text.setText(" ")
 
+		if not h5_only:
+			for metadata_line_nb in metadata_dict:
+				metadata_tag = metadata_dict[metadata_line_nb][1]
+				metadata_result = metadata_dict[metadata_line_nb][2]
+				if not metadata_tag.isupper():
+					# Generer dynamiquement du texte pour le titre et resultat pour
+					# chaque type de metadonnée non-majiscule
+					self.dynamic_metadata_label_tags.addWidget(
+						QtWidgets.QLabel(metadata_tag, self))
+					self.dynamic_metadata_label_results.addWidget(
+						QtWidgets.QLabel(metadata_result, self))
 		if self.MetallaxisSettings.annotation_checkbox.isChecked():
 			if h5_only is not True:
 				complete_h5_file = self.annotate_h5(complete_h5_file, selected_vcf)
@@ -532,16 +547,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						metadata_dict[metadata_line_nb] = metadata_dict_entry
 					metadata_line_nb += 1
 
-		for metadata_line_nb in metadata_dict:
-			metadata_tag = metadata_dict[metadata_line_nb][1]
-			metadata_result = metadata_dict[metadata_line_nb][2]
-			if not metadata_tag.isupper():
-				# Generer dynamiquement du texte pour le titre et resultat pour
-				# chaque type de metadonnée non-majiscule
-				self.dynamic_metadata_label_tags.addWidget(
-					QtWidgets.QLabel(metadata_tag, self))
-				self.dynamic_metadata_label_results.addWidget(
-					QtWidgets.QLabel(metadata_result, self))
+		return metadata_dict
+
 
 
 	def populate_table(self, selected_h5_data):
@@ -593,10 +600,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# reopen progress bar for loading new file
 		self.MetallaxisProgress = MetallaxisProgress()
 		self.MetallaxisProgress.show()
-		self.process_vcf(selected_vcf)
+		metadata_dict = self.process_vcf(selected_vcf)
 		h5_file = self.h5_encode(selected_vcf)
 		complete_h5_file = pd.read_hdf(h5_file)
-		self.post_h5_processing(complete_h5_file, h5_only, selected_vcf=selected_vcf)
+		self.post_h5_processing(complete_h5_file, h5_only, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
 
 
 	def h5_encode(self, selected_vcf):
