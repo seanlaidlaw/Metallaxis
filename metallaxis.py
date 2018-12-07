@@ -682,10 +682,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			annotate_nb += 1
 
 
-
 		# index columns explicitly now we've finished adding data to h5
 		self.progress_bar(46, "Indexing H5 database")
-		h5_file.create_table_index('df', columns=True, optlevel=9, kind='full')
+		if self.MetallaxisSettings.annotation_checkbox.isChecked():
+			cols_to_index = ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER']
+		else:
+			cols_to_index = ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'IMPACT', 'GENE_SYMBOL', 'CONSEQUENCE_TERMS_1', 'CONSEQUENCE_TERMS_2', 'CONSEQUENCE_TERMS_3', 'GENE_ID', 'BIOTYPE']
+		h5_file.create_table_index('df', columns=cols_to_index, optlevel=9, kind='full')
 		h5_file.close()
 		return h5_output_name
 
@@ -819,7 +822,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					annotate_nb += 1
 
 		self.progress_bar(80,"Indexing annotated H5")
-		annotated_h5.create_table_index('df', columns=True, optlevel=9, kind='full')
+		cols_to_index = ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'IMPACT', 'GENE_SYMBOL', 'CONSEQUENCE_TERMS_1', 'CONSEQUENCE_TERMS_2', 'CONSEQUENCE_TERMS_3', 'GENE_ID', 'BIOTYPE']
+		annotated_h5.create_table_index('df', columns=cols_to_index, optlevel=9, kind='full')
 		annotated_h5.close()
 		return annotated_h5_output_name
 
