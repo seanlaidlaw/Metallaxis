@@ -119,14 +119,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		h5_output_name = 'input.h5'
 		annotated_h5_output_name = 'input_annotated.h5'
 
-
 		# obtenir vcf d'entrée
 		self.progress_bar(2,"Parsing arguments")
 		h5_only = False
 		if len(sys.argv) == 1:
 			selected_vcf = self.select_vcf()
-			metadata_dict = self.process_vcf(selected_vcf)
-			h5_file = self.h5_encode(selected_vcf, metadata_dict=metadata_dict)
+			metadata_dict, var_counts = self.process_vcf(selected_vcf)
+			h5_file = self.h5_encode(selected_vcf, var_counts=var_counts, metadata_dict=metadata_dict)
 			# Read H5 for actual table populating
 			complete_h5_file = pd.read_hdf(h5_file, key="df",)
 		elif len(sys.argv) == 2:
@@ -149,8 +148,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				# obtenir le chemin absolue afin d'être dans les memes conditions
 				# que si on le selectionnait
 				selected_vcf = os.path.abspath(sys.argv[1])
-				metadata_dict = self.process_vcf(selected_vcf)
-				h5_file = self.h5_encode(selected_vcf, metadata_dict=metadata_dict)
+				metadata_dict, var_counts = self.process_vcf(selected_vcf)
+				h5_file = self.h5_encode(selected_vcf, var_counts=var_counts, metadata_dict=metadata_dict)
 				# Read H5 for actual table populating
 				complete_h5_file = pd.read_hdf(h5_file,key="df")
 		else:
@@ -160,9 +159,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		if h5_only:
 			self.post_h5_processing(complete_h5_file, h5_only)
 		else:
-			self.post_h5_processing(complete_h5_file, h5_only, metadata_dict=metadata_dict)
+			self.post_h5_processing(complete_h5_file, h5_only, var_counts=var_counts, metadata_dict=metadata_dict)
 
-	def post_h5_processing(self, complete_h5_file, h5_only, metadata_dict=None, selected_vcf=None):
+	def post_h5_processing(self, complete_h5_file, h5_only, var_counts=None, metadata_dict=None, selected_vcf=None):
 		"""
 		function that clears the interface if it already has data,
 		then runs the annotate_h5() populate_table() functions. Requires h5
@@ -196,6 +195,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# effacer espace metadonées (utile si on charge un fichier apres un autre)
 		self.empty_qt_layout(self.dynamic_metadata_label_results)
 		self.empty_qt_layout(self.dynamic_metadata_label_tags)
+		# effacer aussi espace statistiques
+		self.empty_qt_layout(self.dynamic_stats_value_label)
+		self.empty_qt_layout(self.dynamic_stats_key_label)
 
 		# effacer chrom_filter_box
 		self.filter_box.clear()
@@ -216,6 +218,15 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						QtWidgets.QLabel(metadata_tag, self))
 					self.dynamic_metadata_label_results.addWidget(
 						QtWidgets.QLabel(metadata_result, self))
+
+			for key, value in var_counts.items():
+				key=key.replace("_"," ")
+				key=key+":"
+				self.dynamic_stats_key_label.addWidget(
+					QtWidgets.QLabel(str(key), self))
+				self.dynamic_stats_value_label.addWidget(
+					QtWidgets.QLabel(str(value), self))
+
 		else:
 			for line in pd.read_hdf(h5_input_name , key="metadata").itertuples():
 				# turn tuple into a list, but exclude the first item of list
@@ -227,6 +238,14 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					QtWidgets.QLabel(metadata_tag, self))
 				self.dynamic_metadata_label_results.addWidget(
 					QtWidgets.QLabel(metadata_result, self))
+
+			for line in pd.read_hdf(h5_input_name , key="stats").itertuples():
+				var_counts_key = line[0]
+				var_counts_value = line[1]
+				self.dynamic_stats_key_label.addWidget(
+					QtWidgets.QLabel(str(var_counts_key), self))
+				self.dynamic_stats_value_label.addWidget(
+					QtWidgets.QLabel(str(var_counts_value), self))
 
 
 		if self.MetallaxisSettings.annotation_checkbox.isChecked():
@@ -551,6 +570,52 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			decompressed_file = decompress_vcf("", selected_vcf, headonly=False)
 
 		self.loaded_vcf_lineedit.setText(os.path.abspath(selected_vcf))
+
+		# Calculate counts of different variant types
+		def add_to_dict_iterator(dictionary, key, iterator_value):
+			"""
+			appends value to list at dictionary[key], but if key doesn't
+			already exist then it adds it
+			"""
+			if key not in dictionary:
+				# add empty list to dict as key
+				dictionary[key] = 0
+				dictionary[key] = dictionary[key] + iterator_value
+			else:
+				# append value to list
+				dictionary[key] = dictionary[key] + iterator_value
+
+
+		var_counts = {}
+		var_counts["Total_SNP_Count"] = 0
+		var_counts["Total_Indel_Count"] = 0
+		list_chromosomes = set() # use set instead of list so it won't store duplicate values
+
+		with open("decompressed_vcf_output.vcf") as decompressed_out:
+			for line in decompressed_out:
+				if not line.startswith('#'):
+					line = line.split("\t")
+					list_chromosomes.add(line[chrom_col])
+
+					if len(line[ref_col]) == len(line[alt_col]):
+						var_counts["Total_SNP_Count"] += 1
+						add_to_dict_iterator(var_counts, line[chrom_col]+"_Chrom_SNP_Count", 1)
+					else:
+						var_counts["Total_Indel_Count"] += 1
+						add_to_dict_iterator(var_counts, line[chrom_col]+"_Chrom_Indel_Count", 1)
+		#TODO: calculate average nombre of mutations per chromosome
+		total_chrom_snp_count, total_chrom_indel_count = 0, 0
+		for key, value in var_counts.items():
+			if "_Chrom_SNP_Count" in key:
+				total_chrom_snp_count += value
+			if "_Chrom_Indel_Count" in key:
+				total_chrom_indel_count += value
+
+		var_counts["Avg_SNP_per_Chrom"] = int(total_chrom_snp_count / len(list_chromosomes))
+		var_counts["Avg_Indel_per_Chrom"] = int(total_chrom_indel_count / len(list_chromosomes))
+
+
+		# Extract Metadata from VCF
 		metadata_dict = {}
 		# Match des groupes des deux cotés du "=", apres un "##"
 		regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
@@ -575,7 +640,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						metadata_dict[metadata_line_nb] = metadata_dict_entry
 					metadata_line_nb += 1
 
-		return metadata_dict
+		return (metadata_dict, var_counts)
 
 
 
@@ -628,13 +693,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# reopen progress bar for loading new file
 		self.MetallaxisProgress = MetallaxisProgress()
 		self.MetallaxisProgress.show()
-		metadata_dict = self.process_vcf(selected_vcf)
-		h5_file = self.h5_encode(selected_vcf, metadata_dict=metadata_dict)
+		metadata_dict, var_counts = self.process_vcf(selected_vcf)
+		h5_file = self.h5_encode(selected_vcf, var_counts=var_counts, metadata_dict=metadata_dict)
 		complete_h5_file = pd.read_hdf(h5_file, key="df",)
-		self.post_h5_processing(complete_h5_file, h5_only, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
+		self.post_h5_processing(complete_h5_file, h5_only, var_counts=var_counts, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
 
 
-	def h5_encode(self, selected_vcf, metadata_dict=None):
+	def h5_encode(self, selected_vcf, var_counts=None, metadata_dict=None):
 		"""
 		Lis en entier le vcf selectionné, bloc par bloc et le met dans un
 		fichier HDF5.
@@ -647,7 +712,14 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			if not metadata_tag.isupper():
 				metadata_line = {'Tag':metadata_tag,'Result':metadata_result}
 				metadata_line = pd.DataFrame(metadata_line, index=[metadata_line_nb])
-				h5_file.append('metadata', metadata_line, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+				h5_file.append("metadata", metadata_line, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+
+		h5_stat_table_index=0
+		for key, value in var_counts.items():
+			var_counts_line = {'Tag':key,'Result':value}
+			var_counts_line = pd.DataFrame(var_counts_line, index=[h5_stat_table_index])
+			h5_file.append("stats", var_counts_line, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+			h5_stat_table_index += 1
 
 
 		chunked_vcf_len = sum(1 for row in open(selected_vcf,'r'))
