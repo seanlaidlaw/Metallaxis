@@ -26,6 +26,9 @@ from PyQt5.QtCore import QUrl
 import time
 start_time = time.time()
 
+# allow <Ctrl-c> to terminate the GUI
+import signal
+signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 def decompress_vcf(compression_type, selected_vcf, headonly):
 	"""
