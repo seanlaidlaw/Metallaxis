@@ -310,18 +310,30 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			self.throw_error_message("Please only use either comma separated values or a dash separated range")
 			return
 
-		# TODO: make this functionnable for int columns (like pos)
 		elif "-" in filter_text:
+			if selected_filter not in numeric_filters:
+				self.throw_error_message("Can only filter a dash separated range on numeric columns: " + str(numeric_filters))
+				return
+
 			split_filter_text = filter_text.split("-")
 			# filtrer les valeurs nulles ou strings vides pour pas gener le comptage des item
-			split_filter_text   = filter(None, split_filter_text)
-			split_filter_text   = list(split_filter_text )
+			split_filter_text = filter(None, split_filter_text)
+			split_filter_text = list(split_filter_text )
 			if len(split_filter_text) == 2:
 				self.filter_text.setText("Filtering to show " + selected_filter + " from "+ str(split_filter_text[0]) + " to " + str(split_filter_text[1]))
-				self.throw_error_message("Sorry, dash separated filters aren't currently working")
-				return
+
+				if split_filter_text[0] > split_filter_text[1]:
+					filter_condition = selected_filter + ">=" + split_filter_text[1] + " & " + selected_filter + "=<" + split_filter_text[0]
+				elif split_filter_text[0] < split_filter_text[1]:
+					filter_condition = selected_filter + ">=" + split_filter_text[0] + " & " + selected_filter + "=<" + split_filter_text[1]
+				else:
+					filter_condition = selected_filter + "==" + split_filter_text[0]
+
+				if self.MetallaxisSettings.annotation_checkbox.isChecked():
+					filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df", where=filter_condition)
+				else:
+					filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
 			else:
-				self.filter_text.setText(" ")
 				self.throw_error_message("Please only enter 2 values separated by a dash")
 				return
 
@@ -331,16 +343,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			split_filter_text  = filter(None, split_filter_text)
 			split_filter_text  = list(split_filter_text)
 			nb_filters = len(split_filter_text)
-			if nb_filters >= 2:
+			if nb_filters >= 1:
 				self.filter_text.setText("Filtering to show "  + selected_filter + ": " + str(split_filter_text))
-				filter_condition = ""
-				filter_iterator = 1
-				for each_filter in split_filter_text:
-					comma_filter = selected_filter + "=='" + each_filter + "'"
-					if filter_iterator < nb_filters:
-						comma_filter = comma_filter  + " or "
-					filter_condition = filter_condition + comma_filter
-					filter_iterator += 1
+				filter_condition = selected_filter + " in " + str(split_filter_text)
 
 				if self.MetallaxisSettings.annotation_checkbox.isChecked():
 					filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df", where=filter_condition)
@@ -354,11 +359,17 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		elif filter_text == "":
 			self.filter_text.setText("No Filter Selected")
-			filtered_h5_table = pd.read_hdf(h5_output_name, key="df",)
+			if self.MetallaxisSettings.annotation_checkbox.isChecked():
+				filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df")
+			else:
+				filtered_h5_table = pd.read_hdf(h5_output_name, key="df")
 		else:
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
 			filter_condition = selected_filter+"==\""+filter_text+"\""
-			filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
+			if self.MetallaxisSettings.annotation_checkbox.isChecked():
+				filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df", where=filter_condition)
+			else:
+				filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
 
 		self.populate_table(filtered_h5_table)
 
@@ -411,7 +422,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# also verify no lines start with a # after end of header
 		line_num = 0
 		variant_num = 0
-		global metadata_num
+		global metadata_num, qual_is_numeric
+		qual_is_numeric = True
 		for line in decompressed_file_head:
 			line_num = line_num + 1
 			if line.startswith(b'#'):
@@ -469,6 +481,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						if col.isdigit():
 							break
 						elif col == ".":
+							qual_is_numeric = False
 							break
 						else:
 							allowed_chars = set('123456789.')
@@ -589,6 +602,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		var_counts = {}
 		var_counts["Total_SNP_Count"] = 0
 		var_counts["Total_Indel_Count"] = 0
+		global list_chromosomes
 		list_chromosomes = set() # use set instead of list so it won't store duplicate values
 
 		with open("decompressed_vcf_output.vcf") as decompressed_out:
@@ -744,6 +758,25 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				chunk['CONSEQUENCE_TERMS_3']="."
 				chunk['GENE_ID']="."
 				chunk['BIOTYPE']="."
+
+			# set columns that only contain numbers to be numeric dtype
+			# otherwise they are just strings, and can't be filtered with -
+			global numeric_filters
+			numeric_filters = ['POS']
+			chunk['POS'] = pd.to_numeric(chunk['POS'])
+
+			# set column to be numeric datatype if it only contains digits
+			# this will allow the column to be filtered with dashes
+			if all(chrom.isdigit() for chrom in list_chromosomes):
+				chunk['CHROM'] = pd.to_numeric(chunk['CHROM'])
+				numeric_filters.append('CHROM')
+
+			# if when we went column by column we only found number scores
+			# for QUAL then it can also be set to numeric datatype
+			if qual_is_numeric is True:
+				chunk['QUAL'] = pd.to_numeric(chunk['QUAL'])
+				numeric_filters.append('QUAL')
+
 
 			# only update progress bar every 20 lines to avoid performance hit
 			# from doing it every line
