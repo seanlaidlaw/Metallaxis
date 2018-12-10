@@ -751,8 +751,54 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		annotate_percent = 35
 
 		for chunk in chunked_vcf:
-			# Rename Columns
+			# the info column of a vcf is long and not very informative if
+			# displayed as is, but it is composed of multiple key:value tags
+			# that we can parse as new columns, making more visual sense
+
+			# Get the key out of the key:value pair and add to a set (so no
+			# duplicates will be added) that will later become new column names
+			cols_to_add = set()
+			for line in chunk["INFO"]:
+				if ";" in line:
+					line_split = line.split(";")
+					for col in line_split:
+						col_to_add = col.split("=")[0]
+						cols_to_add.add(col_to_add)
+
+			# set the new column names to be empty by default
+			for col in cols_to_add:
+				chunk[col] = "."
+
+			line_nb = 0
+			# split our chunk of VCF into line by line
+			for line in chunk["INFO"]:
+				# split the INFO column by ; which separates the different
+				# key:value pairs
+				if ";" in line:
+					line_split = line.split(";")
+					for col in line_split:
+						# get either side of the equals sign to get the key and the value
+						col_split = col.split("=")
+						key_to_add = col_split[0]
+						# col_split will be greater than 1 if there is an = sign
+						# if theres an equals there is a key:value pair to be extracted
+						if len(col_split) > 1:
+							data_to_add = col_split[1]
+							chunk[key_to_add].values[line_nb] = data_to_add
+						#if there is no = sign then there is no key:value pair just
+						# a tag so set it tag as a boolean column
+						else:
+							chunk[key_to_add].values[line_nb] = "T"
+				line_nb += 1
+
+
+
+			# Rename column so we can just talk about chunk['CHROM'] instead
+			# of having to remember the # every time
 			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
+
+			# if we have chosen to automatically annotate then add the columns
+			# the annotation will later fill in
 			if self.MetallaxisSettings.annotation_checkbox.isChecked():
 				chunk['IMPACT']="."
 				chunk['GENE_SYMBOL']="."
