@@ -13,15 +13,18 @@ import lzma
 import bz2
 import gzip
 
+import pathlib  # for making the folder where we store data
+import platform  # for determining OS and therefore where to store data
+
 # Importer les modules de tierce-partie
 import magic  # pour detecter type de fichier
 import pandas as pd
 # pour lire uniquement certains lignes des fichiers (reduit conso RAM)
 from itertools import islice
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QProgressBar, QTableWidget, QLabel
-from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl
+from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QProgressBar, QTableWidget, QLabel
 
 import time
 start_time = time.time()
@@ -29,6 +32,26 @@ start_time = time.time()
 # allow <Ctrl-c> to terminate the GUI
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+# Determine where to store Metallaxis Data
+home_dir = os.path.expanduser('~')
+if platform.system() == "Linux":
+	working_directory = home_dir + "/.metallaxis/"
+elif platform.system() == "Darwin":
+	working_directory = home_dir + "/Library/Caches/Metallaxis/"
+elif platform.system() == "Windows":
+	working_directory = os.path.expandvars(r'%APPDATA%\Metallaxis\\')
+
+# make data folder and parent folders if they don't exist
+pathlib.Path(working_directory).mkdir(parents=True, exist_ok=True)
+
+# Tempory file names
+global h5_output_name, annotated_h5_output_name, decompressed_vcf_output
+h5_output_name = os.path.join(working_directory, 'input.h5')
+annotated_h5_output_name = os.path.join(
+	working_directory, 'input_annotated.h5')
+decompressed_vcf_output = os.path.join(
+	working_directory, 'decompressed_vcf_output.vcf')
 
 def decompress_vcf(compression_type, selected_vcf, headonly):
 	"""
@@ -50,7 +73,7 @@ def decompress_vcf(compression_type, selected_vcf, headonly):
 		decompressed_file_object.close()
 		return decompressed_file_head
 	else:
-		with open("decompressed_vcf_output.vcf", "wb") as decompressed_out:
+		with open(decompressed_vcf_output, "wb") as decompressed_out:
 			decompressed_out.write(decompressed_file_object.read())
 		decompressed_file_object.close()
 		return decompressed_file_object
@@ -116,11 +139,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# on changing Species combobox in Settings, run the changed_species_combobox
 		# function that'll enable or disable the "annotation" checkbox
 		self.MetallaxisSettings.annotate_species_comboBox.currentTextChanged.connect(self.changed_species_combobox)
-
-		# Tempory file names
-		global h5_output_name, annotated_h5_output_name
-		h5_output_name = 'input.h5'
-		annotated_h5_output_name = 'input_annotated.h5'
 
 		# obtenir vcf d'entrée
 		self.progress_bar(2,"Parsing arguments")
@@ -608,7 +626,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		global list_chromosomes
 		list_chromosomes = set() # use set instead of list so it won't store duplicate values
 
-		with open("decompressed_vcf_output.vcf") as decompressed_out:
+		with open(decompressed_vcf_output) as decompressed_out:
 			for line in decompressed_out:
 				if not line.startswith('#'):
 					line = line.split("\t")
@@ -639,7 +657,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		self.progress_bar(10,"Extracting VCF metadata")
 		# parser vcf decompressé dans plusieurs dictionnaires
-		with open("decompressed_vcf_output.vcf") as decompressed_out:
+		with open(decompressed_vcf_output) as decompressed_out:
 			vcf_line_nb, metadata_line_nb = 0, 0
 			for line in decompressed_out:
 				if line.startswith('##'):
