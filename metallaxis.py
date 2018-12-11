@@ -643,8 +643,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			vcf_line_nb, metadata_line_nb = 0, 0
 			for line in decompressed_out:
 				if line.startswith('##'):
-					metadata_tag = regex_metadata.search(line).group(1)
-					metadata_result = regex_metadata.search(line).group(2)
+					metadata_tag = str(regex_metadata.search(line).group(1))
+					metadata_result = str(regex_metadata.search(line).group(2))
 					# dans un premier temps on va pas s'interesser pas aux
 					# metadonéées 'en majiscules' ("INFO" "FILTER" "ALT")
 					# peuvent être regroupés ensemble dans un tableau
@@ -652,6 +652,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						metadata_type = metadata_tag
 					else:
 						metadata_type = "basic"
+						# too long metadata distorts the GUI window and causes
+						# database errors so truncate if its too long
+						if len(metadata_tag) > 20:
+							metadata_tag = metadata_tag[:20] + "..."
+						if len(metadata_result) > 95:
+							metadata_result = metadata_result[:95] + "...<truncated due to length>"
+
 					metadata_dict_entry = [metadata_type, metadata_tag, metadata_result]
 					if not metadata_dict_entry in metadata_dict.values():
 						metadata_dict[metadata_line_nb] = metadata_dict_entry
@@ -729,7 +736,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			if not metadata_tag.isupper():
 				metadata_line = {'Tag':metadata_tag,'Result':metadata_result}
 				metadata_line = pd.DataFrame(metadata_line, index=[metadata_line_nb])
-				h5_file.append("metadata", metadata_line, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+				h5_file.append("metadata", metadata_line, data_columns=True, min_itemsize=150,complib=complib,complevel=int(complevel))
 
 		h5_stat_table_index=0
 		for key, value in var_counts.items():
