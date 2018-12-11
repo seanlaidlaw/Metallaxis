@@ -731,128 +731,178 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		h5_file = pd.HDFStore(h5_output_name ,mode='w')
 
 		for metadata_line_nb in metadata_dict:
-			metadata_tag = metadata_dict[metadata_line_nb][1]
-			metadata_result = metadata_dict[metadata_line_nb][2]
+			metadata_tag = str(metadata_dict[metadata_line_nb][1])
+			metadata_result = str(metadata_dict[metadata_line_nb][2])
 			if not metadata_tag.isupper():
-				metadata_line = {'Tag':metadata_tag,'Result':metadata_result}
-				metadata_line = pd.DataFrame(metadata_line, index=[metadata_line_nb])
-				h5_file.append("metadata", metadata_line, data_columns=True, min_itemsize=150,complib=complib,complevel=int(complevel))
+				metadata_line = {'Tag': metadata_tag, 'Result': metadata_result}
+				metadata_line = pd.DataFrame(
+					metadata_line, index=[metadata_line_nb])
+				h5_file.append("metadata", metadata_line, data_columns=True,
+							min_itemsize=150, complib=complib, complevel=int(complevel))
 
-		h5_stat_table_index=0
-		for key, value in var_counts.items():
-			var_counts_line = {'Tag':key,'Result':value}
-			var_counts_line = pd.DataFrame(var_counts_line, index=[h5_stat_table_index])
-			h5_file.append("stats", var_counts_line, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+		h5_stat_table_index = 0
+		for var_counts_key, var_counts_value in var_counts.items():
+			var_counts_key = str(var_counts_key)
+			var_counts_value = str(var_counts_value)
+			if len(var_counts_key) > 40:
+				var_counts_key = var_counts_key[:40] + "..."
+			if len(var_counts_value) > 60:
+				var_counts_value = var_counts_value[:60] + "..."
+			var_counts_line = {'Tag': var_counts_key, 'Result': var_counts_value}
+			var_counts_line = pd.DataFrame(
+				var_counts_line, index=[h5_stat_table_index])
+
+			h5_file.append("stats", var_counts_line, data_columns=True,
+						min_itemsize=100, complib=complib, complevel=int(complevel))
 			h5_stat_table_index += 1
 
-
-		chunked_vcf_len = sum(1 for row in open(selected_vcf,'r'))
+		chunked_vcf_len = sum(1 for row in open(selected_vcf, 'r'))
 		chunked_vcf = pd.read_csv(selected_vcf,
-							delim_whitespace=True,
-							skiprows= range(0,metadata_num-1),
-							chunksize=int(h5chunksize),
-							low_memory=False,
-							dtype=object, # make default data type an object (ie. string)
-							)
+								delim_whitespace=True,
+								skiprows=range(0, metadata_num-1),
+								chunksize=int(h5chunksize),
+								low_memory=False,
+								# make default data type an object (ie. string)
+								dtype=object)
 		annotate_nb = 0
 		annotate_percent = 35
 
-		for chunk in chunked_vcf:
-			# the info column of a vcf is long and not very informative if
-			# displayed as is, but it is composed of multiple key:value tags
-			# that we can parse as new columns, making more visual sense
 
-			# Get the key out of the key:value pair and add to a set (so no
-			# duplicates will be added) that will later become new column names
-			cols_to_add = set()
+		# PARSE INFO COLUMNS
+		# the info column of a vcf is long and hard to read if
+		# displayed as is, but it is composed of multiple key:value tags
+		# that we can parse as new columns, making more visual sense
+		global info_cols_to_add
+		info_cols_to_add = set()
+		chunked_vcf = pd.read_csv(selected_vcf,
+								delim_whitespace=True,
+								skiprows=range(0, metadata_num-1),
+								chunksize=int(h5chunksize),
+								low_memory=False,
+								# make default data type an object (ie. string)
+								dtype=object)
+
+		# Run through every chunk of the whole VCF and get the key out of the
+		# key:value pair and add to a set (so no duplicates will be added) that
+		# will later become new column names
+		for chunk in chunked_vcf:
 			for line in chunk["INFO"]:
 				if ";" in line:
 					line_split = line.split(";")
 					for col in line_split:
 						col_to_add = col.split("=")[0]
-						cols_to_add.add(col_to_add)
+						info_cols_to_add.add(col_to_add)
 
-			# set the new column names to be empty by default
-			for col in cols_to_add:
+
+		global table_column_names
+		chunked_vcf = pd.read_csv(selected_vcf,
+								delim_whitespace=True,
+								skiprows=range(0, metadata_num-1),
+								chunksize=int(h5chunksize),
+								low_memory=False,
+								# make default data type an object (ie. string)
+								dtype=object)
+		for chunk in chunked_vcf:
+			# set the new info column names to be empty by default
+			for col in info_cols_to_add:
 				chunk[col] = "."
 
 			line_nb = 0
-			# split our chunk of VCF into line by line
 			for line in chunk["INFO"]:
 				# split the INFO column by ; which separates the different
 				# key:value pairs
 				if ";" in line:
 					line_split = line.split(";")
+					# get both sides of the = to get the key and the value
 					for col in line_split:
-						# get either side of the equals sign to get the key and the value
 						col_split = col.split("=")
 						key_to_add = col_split[0]
 						# col_split will be greater than 1 if there is an = sign
-						# if theres an equals there is a key:value pair to be extracted
+						# a = means there is a key:value pair to be extracted
 						if len(col_split) > 1:
 							data_to_add = col_split[1]
 							chunk[key_to_add].values[line_nb] = data_to_add
-						#if there is no = sign then there is no key:value pair just
+						# if there is no = sign then there is no key:value pair just
 						# a tag so set it tag as a boolean column
 						else:
 							chunk[key_to_add].values[line_nb] = "T"
 				line_nb += 1
 
+			# Rename column so we get 'CHROM' not '#CHROM' from chunk.keys()
+			chunk.rename(columns={'#CHROM': 'CHROM'}, inplace=True)
 
+			# set global variable table_column_names to have both normal table
+			# columns and the parsed columns from INFO column
+			table_column_names = list(chunk.keys()) + list(info_cols_to_add)
 
-			# Rename column so we can just talk about chunk['CHROM'] instead
-			# of having to remember the # every time
-			chunk.rename(columns = {'#CHROM':'CHROM'}, inplace = True)
-
-			# if we have chosen to automatically annotate then add the columns
-			# the annotation will later fill in
-			if self.MetallaxisSettings.annotation_checkbox.isChecked():
-				chunk['IMPACT']="."
-				chunk['GENE_SYMBOL']="."
-				chunk['CONSEQUENCE_TERMS_1']="."
-				chunk['CONSEQUENCE_TERMS_2']="."
-				chunk['CONSEQUENCE_TERMS_3']="."
-				chunk['GENE_ID']="."
-				chunk['BIOTYPE']="."
-
+			# SET COLS WITH NUMBERS TO BE NUMERIC TYPE
 			# set columns that only contain numbers to be numeric dtype
-			# otherwise they are just strings, and can't be filtered with -
-			global numeric_filters
-			numeric_filters = ['POS']
-			chunk['POS'] = pd.to_numeric(chunk['POS'])
+			# otherwise they are just strings, and can't be used with a
+			# dash separated filter
 
-			# set column to be numeric datatype if it only contains digits
-			# this will allow the column to be filtered with dashes
-			if all(chrom.isdigit() for chrom in list_chromosomes):
-				chunk['CHROM'] = pd.to_numeric(chunk['CHROM'])
-				numeric_filters.append('CHROM')
+			# make a list from all column names, we will later remove the
+			# non-numeric columns from the list
+			numeric_columns = table_column_names
 
-			# if when we went column by column we only found number scores
-			# for QUAL then it can also be set to numeric datatype
-			if qual_is_numeric is True:
-				chunk['QUAL'] = pd.to_numeric(chunk['QUAL'])
-				numeric_filters.append('QUAL')
+
+			def set_col_to_numeric_if_isdigit(column , chunk):
+				# chunk[col_name] = chunk[col_name].astype(str)
+				# the default isdigit() doesnt recognise floats so write our own
+				def is_number_bool(sample):
+					try:
+						float(sample)
+					except:
+						return False
+					return True
+
+				def del_col(column):
+					if column in numeric_columns:
+						numeric_columns.remove(column)
+
+				for row in chunk[column]:
+					row = str(row)
+					if "," in row:
+						del_col(column)
+					if ";" in row:
+						del_col(column)
+					if "|" in row:
+						del_col(column)
+					if bool(re.match('^[0-9]+$',row)) is False:
+						if is_number_bool(row) is False:
+							if column in numeric_columns:
+								numeric_columns.remove(column)
+
+
+			# run the function for every column to remove non-numeric columns
+			# from "numeric_columns" list
+			for column in chunk.keys():
+				set_col_to_numeric_if_isdigit(column,chunk)
+
+			print(numeric_columns)
+			# convert the remaining columns in "numeric_columns" list to numeric datatype
+			for column in numeric_columns:
+				chunk[column] = pd.to_numeric(chunk[column])
 
 
 			# only update progress bar every 20 lines to avoid performance hit
-			# from doing it every line
+			# of refreshing the whole GUI at every line
 			if annotate_nb % 20 == 0:
-				annotate_progress = annotate_percent + (annotate_nb / chunked_vcf_len)  * (43 - annotate_percent)
-				self.progress_bar(float(annotate_progress), "Encoding H5 database")
-			h5_file.append('df', chunk, index=False, data_columns=True, min_itemsize=80,complib=complib,complevel=int(complevel))
+				annotate_progress = annotate_percent + \
+					(annotate_nb / chunked_vcf_len) * (43 - annotate_percent)
+				self.progress_bar(
+					float(annotate_progress), "Encoding H5 database")
+
+			# append the modified chunk to the h5 database without indexing
+			h5_file.append("df", chunk, index=False, data_columns=True,
+						min_itemsize=80, complib=complib, complevel=int(complevel))
 			annotate_nb += 1
 
-
-		# index columns explicitly now we've finished adding data to h5
+		# index columns explicitly, now that we have finished adding data to it
 		self.progress_bar(46, "Indexing H5 database")
-		if self.MetallaxisSettings.annotation_checkbox.isChecked():
-			cols_to_index = ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER']
-		else:
-			cols_to_index = ['CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'IMPACT', 'GENE_SYMBOL', 'CONSEQUENCE_TERMS_1', 'CONSEQUENCE_TERMS_2', 'CONSEQUENCE_TERMS_3', 'GENE_ID', 'BIOTYPE']
-		h5_file.create_table_index('df', columns=cols_to_index, optlevel=9, kind='full')
+		h5_file.create_table_index(
+			"df", columns=table_column_names, optlevel=9, kind='full')
 		h5_file.close()
 		return h5_output_name
-
 
 	def changed_species_combobox(self):
 		"""
