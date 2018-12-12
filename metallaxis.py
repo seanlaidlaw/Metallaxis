@@ -24,7 +24,7 @@ from itertools import islice
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QProgressBar, QTableWidget, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QProgressBar, QTableWidget, QLabel, QDesktopWidget
 
 import time
 start_time = time.time()
@@ -95,6 +95,11 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# initalise progress bar
 		self.MetallaxisProgress = MetallaxisProgress()
 		self.MetallaxisProgress.show()
+
+		# Center GUI on screen
+		qtRectangle = self.frameGeometry()
+		centerPoint = QDesktopWidget().availableGeometry().center()
+		qtRectangle.moveCenter(centerPoint)
 
 		# start mesuring memory
 		tracemalloc.start()
@@ -1100,6 +1105,10 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		self.setWindowTitle("Metallaxis Settings")
 		self.compression_comboBox.addItems(['zlib', 'blosc', 'bzip2', 'lzo'])
 		self.vcf_chunk_size.setText("5000")
+		# Center settings pannel on screen
+		qtRectangle = self.frameGeometry()
+		centerPoint = QDesktopWidget().availableGeometry().center()
+		qtRectangle.moveCenter(centerPoint)
 
 
 # Si le script est executé directement, lance l'interface graphique
