@@ -5,6 +5,7 @@
 import sys
 import re
 import os
+from shutil import copyfile  # for save hdf5 to work
 import tracemalloc
 import json
 import requests
@@ -112,6 +113,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.open_vcf_button.clicked.connect(self.select_and_process)
 		# menus sur interface
 		self.actionOpen_VCF.triggered.connect(self.select_and_process)
+		self.actionSave_as_HDF5.triggered.connect(self.save_hdf5)
 		self.actionQuit.triggered.connect(self.close)
 
 		# Relier bouton "Github Page" du menu avec l'URL
@@ -551,6 +553,19 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			self.throw_error_message("ERROR: No selected file")
 			selected_vcf = self.select_vcf()
 		return selected_vcf
+
+	def save_hdf5(self):
+		"""
+		Ouvre une dialogue pour que l'utilisateur puisse choisir un endroit
+		ou enregister le fichier hdf5
+		"""
+		save_dialog = QtWidgets.QFileDialog()
+		save_dialog.setAcceptMode(save_dialog.AcceptSave)
+		save_folder = save_dialog.getSaveFileName(self, 'Save Analayis as HDF5',filter="*.h5")[0]
+		if self.MetallaxisSettings.annotation_checkbox.isChecked():
+			copyfile(annotated_h5_output_name, save_folder)
+		else:
+			copyfile(h5_output_name, save_folder)
 
 
 	def process_vcf(self, selected_vcf):

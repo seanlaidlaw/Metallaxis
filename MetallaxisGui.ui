@@ -402,6 +402,7 @@
     <addaction name="actionAbout"/>
     <addaction name="separator"/>
     <addaction name="actionOpen_VCF"/>
+    <addaction name="actionSave_as_HDF5"/>
     <addaction name="actionSettings"/>
     <addaction name="separator"/>
     <addaction name="actionExport_Report"/>
@@ -483,6 +484,16 @@
    </property>
    <property name="menuRole">
     <enum>QAction::PreferencesRole</enum>
+   </property>
+  </action>
+  <action name="actionSave_Annotation">
+   <property name="text">
+    <string>Save Annotation</string>
+   </property>
+  </action>
+  <action name="actionSave_as_HDF5">
+   <property name="text">
+    <string>Save as HDF5</string>
    </property>
   </action>
  </widget>
