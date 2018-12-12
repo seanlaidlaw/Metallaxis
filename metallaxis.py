@@ -626,24 +626,51 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 
 		var_counts = {}
+		length_of_all_indels = 0
 		var_counts["Total_SNP_Count"] = 0
 		var_counts["Total_Indel_Count"] = 0
-		global list_chromosomes
-		list_chromosomes = set() # use set instead of list so it won't store duplicate values
+		global list_chromosomes, ALT_Types
+		list_chromosomes = set()  # use set instead of list so it won't store duplicate values
+		ALT_Types = set()  # use set instead of list so it won't store duplicate values
+
+		# If VCF only has SNP then collect data on distribution of different nucleotides
+		alt_types_only_snp = True
+		with open(decompressed_vcf_output) as decompressed_out:
+			for line in decompressed_out:
+				if not line.startswith('#'):
+					line = line.split("\t")
+					alt = str(line[alt_col])
+					if set(alt).issubset(set('ACTG')) and len(alt) != 1:
+						alt_types_only_snp = False
 
 		with open(decompressed_vcf_output) as decompressed_out:
 			for line in decompressed_out:
 				if not line.startswith('#'):
 					line = line.split("\t")
 					list_chromosomes.add(line[chrom_col])
+					alt = str(line[alt_col])
+					# if our alt types are only SNP or transposable élements
+					# then count them
+					if alt_types_only_snp is True:
+						ALT_Types.add(alt)
+						add_to_dict_iterator(
+							var_counts, line[alt_col]+"_Alt_Count", 1)
 
 					if len(line[ref_col]) == len(line[alt_col]):
 						var_counts["Total_SNP_Count"] += 1
-						add_to_dict_iterator(var_counts, line[chrom_col]+"_Chrom_SNP_Count", 1)
+						add_to_dict_iterator(
+							var_counts, line[chrom_col]+"_Chrom_SNP_Count", 1)
+						add_to_dict_iterator(
+							var_counts, line[chrom_col]+"_Chrom_Variant_Count", 1)
 					else:
 						var_counts["Total_Indel_Count"] += 1
-						add_to_dict_iterator(var_counts, line[chrom_col]+"_Chrom_Indel_Count", 1)
-		#TODO: calculate average nombre of mutations per chromosome
+						add_to_dict_iterator(
+							var_counts, line[chrom_col]+"_Chrom_Indel_Count", 1)
+						add_to_dict_iterator(
+							var_counts, line[chrom_col]+"_Chrom_Variant_Count", 1)
+						length_of_all_indels += len(line[alt_col])
+
+
 		total_chrom_snp_count, total_chrom_indel_count = 0, 0
 		for key, value in var_counts.items():
 			if "_Chrom_SNP_Count" in key:
@@ -651,8 +678,21 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			if "_Chrom_Indel_Count" in key:
 				total_chrom_indel_count += value
 
-		var_counts["Avg_SNP_per_Chrom"] = int(total_chrom_snp_count / len(list_chromosomes))
-		var_counts["Avg_Indel_per_Chrom"] = int(total_chrom_indel_count / len(list_chromosomes))
+
+		if length_of_all_indels > 0 and var_counts["Total_Indel_Count"] > 0:
+			var_counts["Avg_Indel_Length"] = float(
+				length_of_all_indels / var_counts["Total_Indel_Count"])
+			var_counts["Avg_Indel_Length"] = round(var_counts["Avg_Indel_Length"], 3)
+		var_counts["Avg_SNP_per_Chrom"] = int(
+			total_chrom_snp_count / len(list_chromosomes))
+		var_counts["Avg_Indel_per_Chrom"] = int(
+			total_chrom_indel_count / len(list_chromosomes))
+		var_counts["Avg_Variant_per_Chrom"] = int(
+			(total_chrom_snp_count + total_chrom_indel_count) / len(list_chromosomes))
+
+
+		if ALT_Types != set():
+			var_counts["ALT_Types"] = str(ALT_Types).strip("{").strip("}")
 
 
 		# Extract Metadata from VCF
