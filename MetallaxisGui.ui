@@ -102,7 +102,7 @@
             <item row="1" column="2">
              <widget class="QPushButton" name="open_vcf_button">
               <property name="text">
-               <string>Open VCF</string>
+               <string>Open File</string>
               </property>
              </widget>
             </item>
@@ -183,8 +183,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>775</width>
-             <height>466</height>
+             <width>104</width>
+             <height>144</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -428,7 +428,7 @@
   </widget>
   <action name="actionOpen_VCF">
    <property name="text">
-    <string>Open VCF</string>
+    <string>Open File</string>
    </property>
   </action>
   <action name="actionOpen_h5">
