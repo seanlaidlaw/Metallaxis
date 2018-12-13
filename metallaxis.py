@@ -21,6 +21,8 @@ import platform  # for determining OS and therefore where to store data
 import magic  # pour detecter type de fichier
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Qt5Agg")
 
 # pour lire uniquement certains lignes des fichiers (reduit conso RAM)
 from itertools import islice
@@ -30,6 +32,11 @@ from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox, QProgressBar, QTableWidget, QLabel, QDesktopWidget
+
+# for plotting graphs
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 import time
 start_time = time.time()
@@ -1208,6 +1215,59 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					QtWidgets.QLabel(str(var_counts_key), self))
 				self.dynamic_stats_value_label.addWidget(
 					QtWidgets.QLabel(str(var_counts_value), self))
+
+
+		self.progress_bar(49, "Plotting Statistics")
+
+		# clear plot layout to avoid dupication on file reload
+		self.empty_qt_layout(self.stat_plot_layout)
+
+		# plot piechart of proportions of SNP/Indel
+		total_figure = plt.figure()
+		graph = total_figure.add_subplot(111)
+		graph.pie([var_counts['Total_SNP_Count'], var_counts['Total_Indel_Count']], labels=['SNP', 'Indels'], autopct='%1.1f%%')
+		# installer les axes de x et y sont egals pour assurer le rond
+		graph.axis('equal')
+		plt.title('Proportion of SNP/Indels')
+		total_figure.tight_layout()
+		graph.legend()
+		self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
+
+		# plot piechart of proportions of types of ALT
+		# get the value for each ALT_Types key in order, per type of Alt so it can be graphed
+		alt_values_to_plot = []
+		for alt in ALT_Types:
+			dict_key = alt + "_Alt_Count"
+			alt_values_to_plot.append(var_counts[dict_key])
+
+		total_figure = plt.figure()
+		graph = total_figure.add_subplot(111)
+		graph.pie(alt_values_to_plot, labels=ALT_Types, autopct='%1.1f%%')
+		# installer les axes de x et y sont egals pour assurer le rond
+		graph.axis('equal')
+		plt.title('Proportion of different mutations')
+		total_figure.tight_layout()
+		graph.legend()
+		self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
+
+		# plot piechart of proportions of types of ALT
+		# get the nb of mutations for each chromosome
+		values_to_plot = []
+		global list_chromosomes  # we're editing a global so it needs to be declared global again
+		list_chromosomes = sorted(list_chromosomes, key=str)
+		for chrom in list_chromosomes:
+			dict_key = chrom + "_Chrom_Variant_Count"
+			values_to_plot.append(var_counts[dict_key])
+
+		total_figure = plt.figure()
+		graph = total_figure.add_subplot(111)
+		graph.bar(list(list_chromosomes), values_to_plot)
+		plt.title('Distribution of mutations by Chromosome')
+		plt.xlabel('Chromosome')
+		plt.ylabel('Number of Variants')
+		total_figure.tight_layout()
+		graph.legend()
+		self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
 
 		if self.MetallaxisSettings.annotation_checkbox.isChecked():
