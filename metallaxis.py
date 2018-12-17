@@ -370,9 +370,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				self.filter_text.setText("Filtering to show " + selected_filter + " from "+ str(split_filter_text[0]) + " to " + str(split_filter_text[1]))
 
 				if split_filter_text[0] > split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[1] + " & " + selected_filter + "=<" + split_filter_text[0]
+					filter_condition = selected_filter + ">=" + split_filter_text[1] + " & " + selected_filter + "<=" + split_filter_text[0]
 				elif split_filter_text[0] < split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[0] + " & " + selected_filter + "=<" + split_filter_text[1]
+					filter_condition = selected_filter + ">=" + split_filter_text[0] + " & " + selected_filter + "<=" + split_filter_text[1]
 				else:
 					filter_condition = selected_filter + "==" + split_filter_text[0]
 
