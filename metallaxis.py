@@ -327,12 +327,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		if not h5_only:
 			# get metadata and variant counts from vcf
-			metadata_dict, var_counts = self.process_vcf(selected_vcf)
+			metadata_dict, var_counts, decompressed_file = self.process_vcf(selected_vcf)
 
 			# convert vcf into a hdf5 object
-			h5_file = self.h5_encode(selected_vcf, var_counts=var_counts, metadata_dict=metadata_dict)
+			h5_file = self.h5_encode(selected_vcf, decompressed_file, var_counts=var_counts, metadata_dict=metadata_dict)
 			# Read H5 for actual table populating
-			complete_h5_file = pd.read_hdf(h5_file, key="df", )
+			complete_h5_file = pd.read_hdf(h5_file, key="df")
 
 			# adapt GUI parameters to h5 file
 			complete_h5_file = self.post_h5_processing(complete_h5_file, h5_only, h5_file, var_counts=var_counts, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
@@ -732,10 +732,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						metadata_dict[metadata_line_nb] = metadata_dict_entry
 					metadata_line_nb += 1
 
-		return (metadata_dict, var_counts)
+		return (metadata_dict, var_counts, decompressed_file)
 
 
-	def h5_encode(self, selected_vcf, var_counts=None, metadata_dict=None):
+	def h5_encode(self, selected_vcf, decompressed_file=None, var_counts=None, metadata_dict=None):
 		"""
 		Lis en entier le vcf selectionné, bloc par bloc et le met dans un
 		fichier HDF5.
@@ -768,7 +768,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			               min_itemsize=100, complib=complib, complevel=int(complevel))
 			h5_stat_table_index += 1
 
-		chunked_vcf_len = sum(1 for row in open(selected_vcf, 'r'))
+		chunked_vcf_len = sum(1 for row in open(decompressed_file, 'r'))
 		chunked_vcf = pd.read_csv(selected_vcf,
 		                          delim_whitespace=True,
 		                          skiprows=range(0, metadata_num - 1),
@@ -1400,10 +1400,10 @@ if __name__ == '__main__':
 	if not h5_only:
 
 		# get metadata and variant counts from vcf
-		metadata_dict, var_counts = MetallaxisGui_object.process_vcf(selected_vcf)
+		metadata_dict, var_counts, decompressed_file = MetallaxisGui_object.process_vcf(selected_vcf)
 
 		# convert vcf into a hdf5 object
-		h5_file = MetallaxisGui_object.h5_encode(selected_vcf, var_counts=var_counts, metadata_dict=metadata_dict)
+		h5_file = MetallaxisGui_object.h5_encode(selected_vcf, decompressed_file,  var_counts=var_counts, metadata_dict=metadata_dict)
 
 		# Read H5 for actual table populating
 		complete_h5_file = pd.read_hdf(h5_file, key="df", )
