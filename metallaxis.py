@@ -97,6 +97,16 @@ def throw_error_message(error_message):
 	error_dialog.setStandardButtons(QMessageBox.Ok)
 	error_dialog.exec_()
 
+def remove_non_authorised_chars_from_set(myset):
+	myset.discard(',')
+	myset.discard('[')
+	myset.discard(']')
+	myset.discard('}')
+	myset.discard('{')
+	myset.discard(',')
+	myset.discard("'")
+	myset.discard('"')
+	myset.discard(' ')
 
 def decompress_vcf(type_of_compression, vcf_input_filename, headonly_bool=False, vcf_output_filename=None):
 	"""
@@ -708,9 +718,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		var_counts["Avg_Variant_per_Chrom"] = int(
 			(total_chrom_snp_count + total_chrom_indel_count) / len(list_chromosomes))
 
+		var_counts["List_Chromosomes"] = list_chromosomes
 
+		# if alt_types isn't empty
 		if ALT_Types != set():
-			var_counts["ALT_Types"] = str(ALT_Types).strip("{").strip("}")
+			# var_counts["ALT_Types"] = str(ALT_Types).strip("{").strip("}")
+			var_counts["ALT_Types"] = ALT_Types
 
 
 		# Extract Metadata from VCF
@@ -1197,45 +1210,43 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		self.filter_table_btn.clicked.connect(self.filter_table)
 
-		if not h5_only:
-			for metadata_line_nb in metadata_dict:
-				metadata_tag = metadata_dict[metadata_line_nb][1]
-				metadata_result = metadata_dict[metadata_line_nb][2]
-				if not metadata_tag.isupper():
-					# Generer dynamiquement du texte pour le titre et resultat pour
-					# chaque type de metadonnée non-majiscule
-					self.dynamic_metadata_label_tags.addWidget(
-						QtWidgets.QLabel(metadata_tag, self))
-					self.dynamic_metadata_label_results.addWidget(
-						QtWidgets.QLabel(metadata_result, self))
+		metadata_dict = {}
+		for line in pd.read_hdf(h5_input_name, key="metadata").itertuples():
+			# turn tuple into a list, but exclude the first item of list
+			# because its the h5 index and not part of our original data
+			line = list(line)[1:]
+			metadata_tag = str(line[0])
+			metadata_result = str(line[1])
+			metadata_dict[metadata_tag] = metadata_result
+			self.dynamic_metadata_label_tags.addWidget(
+				QtWidgets.QLabel(metadata_tag, self))
+			self.dynamic_metadata_label_results.addWidget(
+				QtWidgets.QLabel(metadata_result, self))
 
-			for key, value in var_counts.items():
-				key=key.replace("_"," ")
-				key=key+":"
-				self.dynamic_stats_key_label.addWidget(
-					QtWidgets.QLabel(str(key), self))
-				self.dynamic_stats_value_label.addWidget(
-					QtWidgets.QLabel(str(value), self))
+		var_counts = {}
+		for line in pd.read_hdf(h5_input_name , key="stats").itertuples():
+			line = list(line)[1:]
+			var_counts_key = str(line[0])
+			var_counts_value = str(line[1])
+			var_counts[var_counts_key] = var_counts_value
+			self.dynamic_stats_key_label.addWidget(
+				QtWidgets.QLabel(str(var_counts_key), self))
+			self.dynamic_stats_value_label.addWidget(
+				QtWidgets.QLabel(str(var_counts_value), self))
 
-		else:
-			for line in pd.read_hdf(h5_input_name , key="metadata").itertuples():
-				# turn tuple into a list, but exclude the first item of list
-				# because its the h5 index and not part of our original data
-				line = list(line)[1:]
-				metadata_tag = line[0]
-				metadata_result = line[1]
-				self.dynamic_metadata_label_tags.addWidget(
-					QtWidgets.QLabel(metadata_tag, self))
-				self.dynamic_metadata_label_results.addWidget(
-					QtWidgets.QLabel(metadata_result, self))
 
-			for line in pd.read_hdf(h5_input_name , key="stats").itertuples():
-				var_counts_key = line[0]
-				var_counts_value = line[1]
-				self.dynamic_stats_key_label.addWidget(
-					QtWidgets.QLabel(str(var_counts_key), self))
-				self.dynamic_stats_value_label.addWidget(
-					QtWidgets.QLabel(str(var_counts_value), self))
+		# clean data extracted form hdf5 var_counts table,
+		# remove duplicates, and unnacceptable characters ( '}','[', etc. )
+		global list_chromosomes  # we're editing a global so it needs to be declared global again
+		if "List_Chromosomes" in var_counts:
+			list_chromosomes = set(var_counts["List_Chromosomes"])
+			remove_non_authorised_chars_from_set(list_chromosomes)
+			var_counts["list_chromosomes"] = list(list_chromosomes)
+
+		if "ALT_Types" in var_counts:
+			ALT_Types = set(var_counts["ALT_Types"])
+			remove_non_authorised_chars_from_set(ALT_Types)
+			var_counts["ALT_Types"] = list(ALT_Types)
 
 
 		self.progress_bar(49, "Plotting Statistics")
@@ -1244,20 +1255,21 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.empty_qt_layout(self.stat_plot_layout)
 
 		# plot piechart of proportions of SNP/Indel
-		total_figure = plt.figure()
-		graph = total_figure.add_subplot(111)
-		graph.pie([var_counts['Total_SNP_Count'], var_counts['Total_Indel_Count']], labels=['SNP', 'Indels'], autopct='%1.1f%%')
-		# installer les axes de x et y sont egals pour assurer le rond
-		graph.axis('equal')
-		plt.title('Proportion of SNP/Indels')
-		total_figure.tight_layout()
-		graph.legend()
-		self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
+		if 'Total_SNP_Count' in var_counts:
+			total_figure = plt.figure()
+			graph = total_figure.add_subplot(111)
+			graph.pie([var_counts['Total_SNP_Count'], var_counts['Total_Indel_Count']], labels=['SNP', 'Indels'], autopct='%1.1f%%')
+			# installer les axes de x et y sont egals pour assurer le rond
+			graph.axis('equal')
+			plt.title('Proportion of SNP/Indels')
+			total_figure.tight_layout()
+			graph.legend()
+			self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
 		# plot piechart of proportions of types of ALT
 		# get the value for each ALT_Types key in order, per type of Alt so it can be graphed
 		alt_values_to_plot = []
-		for alt in ALT_Types:
+		for alt in var_counts['ALT_Types']:
 			dict_key = alt + "_Alt_Count"
 			alt_values_to_plot.append(var_counts[dict_key])
 
@@ -1273,27 +1285,33 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		# plot piechart of proportions of types of ALT
 		# get the nb of mutations for each chromosome
-		values_to_plot = []
-		global list_chromosomes  # we're editing a global so it needs to be declared global again
-		list_chromosomes = sorted(list_chromosomes, key=str)
-		for chrom in list_chromosomes:
-			dict_key = chrom + "_Chrom_Variant_Count"
-			values_to_plot.append(var_counts[dict_key])
+		if "List_Chromosomes" in var_counts:
+			values_to_plot = []
+			list_chromosomes = sorted(list_chromosomes, key=str)
+			for chrom in var_counts['List_Chromosomes']:
+				dict_key = chrom + "_Chrom_Variant_Count"
+				if dict_key in var_counts:
+					values_to_plot.append(var_counts[dict_key])
 
-		total_figure = plt.figure()
-		graph = total_figure.add_subplot(111)
-		graph.bar(list(list_chromosomes), values_to_plot)
-		plt.title('Distribution of mutations by Chromosome')
-		plt.xlabel('Chromosome')
-		plt.ylabel('Number of Variants')
-		total_figure.tight_layout()
-		graph.legend()
-		self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
+			if values_to_plot != []:
+				total_figure = plt.figure()
+				graph = total_figure.add_subplot(111)
+				graph.bar(list(list_chromosomes), values_to_plot)
+				plt.title('distribution of mutations by chromosome')
+				plt.xlabel('chromosome')
+				plt.ylabel('number of variants')
+				total_figure.tight_layout()
+				graph.legend()
+				self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
 
 
 
 	def populate_table(self, selected_h5_data):
+		if selected_h5_data is None:
+			throw_error_message("ERROR: Can't Populate Table: was passed a None object. Verify input H5 or VCF is not currupt")
+			return
+
 		# effacer tableau actuelle
 		self.viewer_tab_table_widget.setRowCount(0)
 		self.viewer_tab_table_widget.setColumnCount(0)
