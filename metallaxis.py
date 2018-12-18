@@ -318,7 +318,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		h5_only = False
 		if selected_file.endswith(".h5"):
 			complete_h5_file = load_hdf5(selected_file)
-			complete_h5_file = True
+			h5_only = True
 			self.write_h5_to_interface(complete_h5_file, h5_only, selected_file)
 		else:
 			selected_vcf = selected_file
@@ -932,9 +932,11 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		annotate_nb = 0
 		# divide api_ids list into sublists, and make API calls based on that to avoid reaching the API's max length
 		api_call_number = 1
-		for i in range(0, len(api_ids), 50):
-			self.progress_bar(51, "Annotate H5: Making API Call to EBI")
-			api_ids_sublist = api_ids[i:i + 50]
+		api_max_at_once = 50
+		for i in range(0, len(api_ids), api_max_at_once):
+			self.progress_bar(51, "Annotate H5: Making API Call to EBI (" + str(api_call_number) +
+			                  "/" + str(int(round((len(api_ids)/api_max_at_once),0))) + ")")
+			api_ids_sublist = api_ids[i:i + api_max_at_once]
 
 			formatted_api_ids_sublist = ','.join('"{0}"'.format(ind_id) for ind_id in api_ids_sublist)
 			formatted_api_ids_sublist = '{ "ids" : [' + formatted_api_ids_sublist + '] }'
