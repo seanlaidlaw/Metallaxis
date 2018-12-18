@@ -308,11 +308,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# if the user cancels the select_file() dialog, then run select again
 		while selected_vcf == "":
 			throw_error_message("ERROR: No selected file")
-			sys.exit(1)
+			return False
 		return selected_vcf
 
 	def select_and_process(self):
 		selected_file = self.select_file()
+		if selected_file is False:
+			return
 		h5_only = False
 		if selected_file.endswith(".h5"):
 			complete_h5_file = load_hdf5(selected_file)
@@ -1385,7 +1387,11 @@ if __name__ == '__main__':
 
 	elif len(sys.argv) == 1:  # if we don't give any args then open file picker
 		selected_file = MetallaxisGui_object.select_file()
-		if selected_file.endswith(".h5"):
+		if selected_file is False:
+			throw_error_message("ERROR: No file selected, qutting Metallaxis")
+			sys.exit(1)
+
+		elif selected_file.endswith(".h5"):
 			complete_h5_file = load_hdf5(selected_file)
 			h5_only = True
 			complete_h5_file = MetallaxisGui_object.post_h5_processing(complete_h5_file, h5_only, selected_file)
