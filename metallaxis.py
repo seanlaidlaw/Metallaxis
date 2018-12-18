@@ -501,7 +501,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				if line.startswith(b'#CHROM'):
 					# verify header is conform to vcf 4.1 spec
 					# decode byte object to utf-8 string and split by tab
-					header_line_cols = line.decode('UTF-8').split("\t")
+					header_line_cols = line.decode('UTF-8')
+					header_line_cols = header_line_cols.rstrip()
+					header_line_cols = header_line_cols .split("\t")
+					expected_columns = ['#CHROM', 'POS', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO']
 					# get index of each column
 					global chrom_col, id_col, pos_col, ref_col, alt_col, qual_col
 					chrom_col = [i for i, s in enumerate(header_line_cols) if '#CHROM' in s][0]
@@ -511,8 +514,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 					alt_col = [i for i, s in enumerate(header_line_cols) if 'ALT' in s][0]
 					qual_col = [i for i, s in enumerate(header_line_cols) if 'QUAL' in s][0]
 					# verifier que l'entete contient tous les colonnes obligatoires du VCF 4.1
-					if not all(x in header_line_cols  for x in ['#CHROM', 'POS', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO']):
-						throw_error_message("ERROR: VCF not valid: VCF doesn not contain all required columns")
+					if not all(x in header_line_cols  for x in expected_columns):
+						throw_error_message("ERROR: VCF not valid: VCF doesn not contain all required columns. Contains: " + str(header_line_cols))
 						return False
 
 			else:
