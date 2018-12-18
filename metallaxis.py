@@ -319,7 +319,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		if selected_file.endswith(".h5"):
 			complete_h5_file = load_hdf5(selected_file)
 			complete_h5_file = True
-			complete_h5_file = self.post_h5_processing(complete_h5_file, h5_only, selected_file)
+			self.write_h5_to_interface(complete_h5_file, h5_only, selected_file)
 		else:
 			selected_vcf = selected_file
 
@@ -333,13 +333,24 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 			# convert vcf into a hdf5 object
 			h5_file = self.h5_encode(selected_vcf, decompressed_file, var_counts=var_counts, metadata_dict=metadata_dict)
+
 			# Read H5 for actual table populating
 			complete_h5_file = pd.read_hdf(h5_file, key="df")
 
-			# adapt GUI parameters to h5 file
-			complete_h5_file = self.post_h5_processing(complete_h5_file, h5_only, h5_file, var_counts=var_counts, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
+			# populate interface with information from hdf5
+			self.write_h5_to_interface(complete_h5_file, h5_only, h5_file, var_counts=var_counts, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
 
-		# populate tableau
+			# get annotation data
+			if self.MetallaxisSettings.annotation_checkbox.isChecked():
+				if h5_only is not True:
+					try:
+						complete_h5_file = self.annotate_h5(complete_h5_file, selected_vcf)
+						complete_h5_file = pd.read_hdf(complete_h5_file, key="df")
+					except:
+						throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
+						self.MetallaxisSettings.annotation_checkbox.setChecked(False)
+
+		# populate table
 		self.populate_table(complete_h5_file)
 
 
@@ -905,8 +916,15 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			line = list(line)[1:]
 			# get the id from id_column and add it to api_ids list
 			line_id = line[id_col]
-			if line_id != ".":
-				api_ids.append(line_id)
+			# ids are strings so if we ave a valid non-null string add it as an ID to send to EBI
+			if type(line_id) == str:
+				if line_id != "." and line_id != "nan":
+					api_ids.append(line_id)
+
+		if len(api_ids) == 0:
+			# return an error if we have no IDs so that metallaxis can use the non-annotated h5 instead
+			throw_error_message("No valid ids to annotate in vcf")
+			raise IndexError
 
 		annotated_h5_tmp = pd.HDFStore(annotated_h5_tmp_name, mode='w')
 		annotated_row_ids = []
@@ -925,7 +943,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			if not api_call.ok:
 				throw_error_message("ERROR: API call failed")
 				api_call.raise_for_status()
-				return
 			# vep_json = json.loads(api_call.text)
 
 			data = api_call.text
@@ -1137,7 +1154,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 
 
-	def post_h5_processing(self, complete_h5_file, h5_only, h5_input_name, var_counts=None, metadata_dict=None, selected_vcf=None):
+	def write_h5_to_interface(self, complete_h5_file, h5_only, h5_input_name, var_counts=None, metadata_dict=None, selected_vcf=None):
 		"""
 		function that clears the interface if it already has data,
 		then runs the annotate_h5() populate_table() functions. Requires h5
@@ -1272,14 +1289,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
 
-		if self.MetallaxisSettings.annotation_checkbox.isChecked():
-			if h5_only is not True:
-				complete_h5_file = self.annotate_h5(complete_h5_file, selected_vcf)
-				print("annotation complete")
-				complete_h5_file = pd.read_hdf(complete_h5_file, key="df", where="ID!='.'")
-
-		return complete_h5_file
-
 
 
 	def populate_table(self, selected_h5_data):
@@ -1378,9 +1387,9 @@ if __name__ == '__main__':
 
 	# if we load a h5 file from a previous analysis then we skip the usual analysis and verifications
 	if len(sys.argv) == 2 and sys.argv[1].endswith(".h5"):
-		complete_h5_file = load_hdf5(sys.argv[1])
 		h5_only = True
-		complete_h5_file = MetallaxisGui_object.post_h5_processing(complete_h5_file, h5_only, sys.argv[1])
+		complete_h5_file = load_hdf5(sys.argv[1])
+		MetallaxisGui_object.write_h5_to_interface(complete_h5_file, h5_only, sys.argv[1])
 
 	elif len(sys.argv) == 2:  # if we give it vcf or compressed vcf
 		selected_vcf = os.path.abspath(sys.argv[1])
@@ -1394,7 +1403,7 @@ if __name__ == '__main__':
 		elif selected_file.endswith(".h5"):
 			complete_h5_file = load_hdf5(selected_file)
 			h5_only = True
-			complete_h5_file = MetallaxisGui_object.post_h5_processing(complete_h5_file, h5_only, selected_file)
+			MetallaxisGui_object.write_h5_to_interface(complete_h5_file, h5_only, selected_file)
 		else:
 			selected_vcf = selected_file
 
@@ -1412,9 +1421,21 @@ if __name__ == '__main__':
 		h5_file = MetallaxisGui_object.h5_encode(selected_vcf, decompressed_file,  var_counts=var_counts, metadata_dict=metadata_dict)
 
 		# Read H5 for actual table populating
-		complete_h5_file = pd.read_hdf(h5_file, key="df", )
+		complete_h5_file = pd.read_hdf(h5_file, key="df")
 
-		complete_h5_file = MetallaxisGui_object.post_h5_processing(complete_h5_file, h5_only, h5_file, var_counts=var_counts, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
+		# populate interface with information from hdf5
+		MetallaxisGui_object.write_h5_to_interface(complete_h5_file, h5_only, h5_file, var_counts=var_counts, metadata_dict=metadata_dict, selected_vcf=selected_vcf)
+
+
+		# get annotation data
+		if MetallaxisGui_object.MetallaxisSettings.annotation_checkbox.isChecked():
+			if h5_only is not True:
+				try:
+					complete_h5_file = MetallaxisGui_object.annotate_h5(complete_h5_file, selected_vcf)
+					complete_h5_file = pd.read_hdf(complete_h5_file, key="df")
+				except:
+					throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
+					MetallaxisGui_object.MetallaxisSettings.annotation_checkbox.setChecked(False)
 
 
 	# actions that are to be done once we have our h5 file (if we loaded a h5 file then it starts here)
