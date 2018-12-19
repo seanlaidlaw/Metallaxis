@@ -97,17 +97,6 @@ def throw_error_message(error_message):
 	error_dialog.setStandardButtons(QMessageBox.Ok)
 	error_dialog.exec_()
 
-def remove_non_authorised_chars_from_set(myset):
-	myset.discard(',')
-	myset.discard('[')
-	myset.discard(']')
-	myset.discard('}')
-	myset.discard('{')
-	myset.discard(',')
-	myset.discard("'")
-	myset.discard('"')
-	myset.discard(' ')
-
 def decompress_vcf(type_of_compression, vcf_input_filename, headonly_bool=False, vcf_output_filename=None):
 	"""
 	Décompresse le fichier d'entrée (si compressé avec with xz/gz/bz2), et
@@ -1243,12 +1232,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# clean data extracted form hdf5 var_counts table,
 		# remove duplicates, and unnacceptable characters ( '}','[', etc. )
 		if "ALT_Types" in var_counts:
-			ALT_Types= set()
-			for alt in str(var_counts["ALT_Types"]).split(","):
-				alt = remove_non_authorised_chars_from_set(alt)
-				ALT_Types.add(alt)
-			ALT_Types = remove_non_authorised_chars_from_set(ALT_Types)
-			var_counts["ALT_Types"] = list(ALT_Types)
+			ALT_Types = eval(var_counts["ALT_Types"])
 
 
 		self.progress_bar(49, "Plotting Statistics")
@@ -1271,7 +1255,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# plot piechart of proportions of types of ALT
 		# get the value for each ALT_Types key in order, per type of Alt so it can be graphed
 		alt_values_to_plot = []
-		for alt in var_counts['ALT_Types']:
+		for alt in ALT_Types:
 			dict_key = alt + "_Alt_Count"
 			alt_values_to_plot.append(var_counts[dict_key])
 
@@ -1289,8 +1273,9 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# get the nb of mutations for each chromosome
 		if "List_Chromosomes" in var_counts:
 			values_to_plot = []
-			list_chromosomes = sorted(list_chromosomes, key=str)
-			for chrom in var_counts['List_Chromosomes']:
+			global list_chromosomes  # we're editing a global so it needs to be declared global again
+			list_chromosomes = eval(var_counts['List_Chromosomes'])
+			for chrom in list_chromosomes:
 				dict_key = chrom + "_Chrom_Variant_Count"
 				if dict_key in var_counts:
 					values_to_plot.append(var_counts[dict_key])
