@@ -787,14 +787,14 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			var_counts_value = str(var_counts_value)
 			if len(var_counts_key) > 40:
 				var_counts_key = var_counts_key[:40] + "..."
-			if len(var_counts_value) > 60:
-				var_counts_value = var_counts_value[:60] + "..."
+			if len(var_counts_value) > 200:
+				var_counts_value = var_counts_value[:200] + "..."
 			var_counts_line = {'Tag': var_counts_key, 'Result': var_counts_value}
 			var_counts_line = pd.DataFrame(
 				var_counts_line, index=[h5_stat_table_index])
 
 			h5_file.append("stats", var_counts_line, data_columns=True,
-			               min_itemsize=100, complib=complib, complevel=int(complevel))
+			               min_itemsize=250, complib=complib, complevel=int(complevel))
 			h5_stat_table_index += 1
 
 		chunked_vcf_len = sum(1 for row in open(decompressed_file, 'r'))
@@ -1232,23 +1232,22 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			var_counts_key = str(line[0])
 			var_counts_value = str(line[1])
 			var_counts[var_counts_key] = var_counts_value
-			self.dynamic_stats_key_label.addWidget(
-				QtWidgets.QLabel(str(var_counts_key), self))
-			self.dynamic_stats_value_label.addWidget(
-				QtWidgets.QLabel(str(var_counts_value), self))
+			new_label = QtWidgets.QLabel(str(var_counts_key), self)
+			new_label.setWordWrap(True)
+			new_label = self.dynamic_stats_key_label.addWidget(new_label)
+			new_label = QtWidgets.QLabel(str(var_counts_value), self)
+			new_label.setWordWrap(True)
+			self.dynamic_stats_value_label.addWidget(new_label)
 
 
 		# clean data extracted form hdf5 var_counts table,
 		# remove duplicates, and unnacceptable characters ( '}','[', etc. )
-		global list_chromosomes  # we're editing a global so it needs to be declared global again
-		if "List_Chromosomes" in var_counts:
-			list_chromosomes = set(var_counts["List_Chromosomes"])
-			remove_non_authorised_chars_from_set(list_chromosomes)
-			var_counts["list_chromosomes"] = list(list_chromosomes)
-
 		if "ALT_Types" in var_counts:
-			ALT_Types = set(var_counts["ALT_Types"])
-			remove_non_authorised_chars_from_set(ALT_Types)
+			ALT_Types= set()
+			for alt in str(var_counts["ALT_Types"]).split(","):
+				alt = remove_non_authorised_chars_from_set(alt)
+				ALT_Types.add(alt)
+			ALT_Types = remove_non_authorised_chars_from_set(ALT_Types)
 			var_counts["ALT_Types"] = list(ALT_Types)
 
 
