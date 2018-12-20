@@ -56,6 +56,14 @@ elif platform.system() == "Windows":
 # make data folder and parent folders if they don't exist
 pathlib.Path(working_directory).mkdir(parents=True, exist_ok=True)
 
+# Interface XML files
+current_file_path = __file__
+current_file_dir = os.path.dirname(current_file_path)
+MetGUIui = os.path.join(current_file_dir, "MetallaxisGui.ui")
+MetSETui = os.path.join(current_file_dir, "MetallaxisSettings.ui")
+MetPROGui = os.path.join(current_file_dir, "MetallaxisProgress.ui")
+
+
 # Temporary file names
 global h5_output_name, annotated_h5_output_name, vcf_output_filename
 h5_output_name = os.path.join(working_directory, 'input.h5')
@@ -886,7 +894,7 @@ def annotate_h5(h5_output_name):
 
 
 # Build graphical interface constructed in XML
-gui_window_object, gui_base_object = uic.loadUiType("MetallaxisGui.ui")
+gui_window_object, gui_base_object = uic.loadUiType(MetGUIui)
 
 
 class MetallaxisGuiClass(gui_base_object, gui_window_object):
@@ -1341,7 +1349,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.MetallaxisProgress.close()
 
 
-progress_window_object, progress_base_object = uic.loadUiType("MetallaxisProgress.ui")
+progress_window_object, progress_base_object = uic.loadUiType(MetPROGui)
 
 
 class MetallaxisProgress(progress_base_object, progress_window_object):
@@ -1355,7 +1363,7 @@ class MetallaxisProgress(progress_base_object, progress_window_object):
 		self.setWindowTitle("Metallaxis")
 
 
-settings_window_object, settings_base_object = uic.loadUiType("MetallaxisSettings.ui")
+settings_window_object, settings_base_object = uic.loadUiType(MetSETui)
 
 
 class MetallaxisSettings(settings_base_object, settings_window_object):
