@@ -341,9 +341,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 			# get annotation data
 			if self.MetallaxisSettings.annotation_checkbox.isChecked():
-				if h5_only is not True:
 					try:
-						complete_h5_file = self.annotate_h5(complete_h5_file, selected_vcf)
+						complete_h5_file = self.annotate_h5(h5_file, selected_vcf)
 						complete_h5_file = pd.read_hdf(complete_h5_file, key="df")
 					except:
 						throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
@@ -904,7 +903,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		return h5_output_name
 
 
-	def annotate_h5(self, selected_h5_data, selected_vcf):
+	def annotate_h5(self, h5_output_name, selected_vcf):
 		"""
 		Uses EBI's VEP API to annotate lines where ID is valid
 		"""
@@ -912,21 +911,26 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		ext = "/vep/human/id/"
 		headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-		api_ids = []
-		selected_h5_data = pd.read_hdf(h5_output_name, key="df", where="ID!='.'")
+		all_hdf5_ids = []
+		hdf5_input_read = pd.read_hdf(h5_output_name, key="df")
+		hdf5_input_read = hdf5_input_read[hdf5_input_read.ID.notnull()]
 
-		for line in selected_h5_data.itertuples():
+		if len(hdf5_input_read) == 0:
+			throw_warning_message("Warning: No ids in VCF, aborting annotation.")
+			raise IndexError  # raise error to quit annotation and use non-annotated h5
+
+		for line in hdf5_input_read.itertuples():
 			# turn tuple into a list, but exclude the first item of list
 			# because its the h5 index and not part of our original data
 			line = list(line)[1:]
-			# get the id from id_column and add it to api_ids list
+			# get the id from id_column and add it to all_hdf5_ids list
 			line_id = line[id_col]
 			# ids are strings so if we ave a valid non-null string add it as an ID to send to EBI
 			if type(line_id) == str:
 				if line_id != "." and line_id != "nan":
-					api_ids.append(line_id)
+					all_hdf5_ids.append(line_id)  # list of all ids in hdf5 input
 
-		if len(api_ids) == 0:
+		if len(all_hdf5_ids) == 0:
 			# return an error if we have no IDs so that metallaxis can use the non-annotated h5 instead
 			throw_error_message("No valid ids to annotate in vcf")
 			raise IndexError
@@ -935,34 +939,43 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		annotated_row_ids = []
 
 		annotate_nb = 0
-		# divide api_ids list into sublists, and make API calls based on that to avoid reaching the API's max length
+		# divide our all_hdf5_ids list, into multiple sublists, and call API with sublists to avoid
+		# reaching the API's limit
 		api_call_number = 1
-		api_max_at_once = 50
-		for i in range(0, len(api_ids), api_max_at_once):
+		maximum_apis_to_send = 50
+		for i in range(0, len(all_hdf5_ids), maximum_apis_to_send):
+			# update progress bar dynamically based off current API call number out of total number of API calls to make
 			self.progress_bar(51, "Annotate H5: Making API Call to EBI (" + str(api_call_number) +
-			                  "/" + str(int(round((len(api_ids)/api_max_at_once),0))) + ")")
-			api_ids_sublist = api_ids[i:i + api_max_at_once]
+							  "/" + str(int(round((len(all_hdf5_ids)/maximum_apis_to_send),0))) + ")")
+			api_ids_sublist = all_hdf5_ids[i:i + maximum_apis_to_send]
 
 			formatted_api_ids_sublist = ','.join('"{0}"'.format(ind_id) for ind_id in api_ids_sublist)
 			formatted_api_ids_sublist = '{ "ids" : [' + formatted_api_ids_sublist + '] }'
 			api_call = requests.post(ebi_rest_api + ext, headers=headers, data=formatted_api_ids_sublist)
 
-			if not api_call.ok:
-				throw_error_message("ERROR: API call failed")
-				api_call.raise_for_status()
-			# vep_json = json.loads(api_call.text)
-
-			data = api_call.text
-			# save sublist's API response as a JSON
-			json_output = os.path.join(working_directory, 'VEP_API_' + str(api_call_number) + '.json')
+			if api_call.ok:
+				data = api_call.text
+				# save sublist's API response as a JSON
+				json_output = os.path.join(working_directory, 'VEP_API_' + str(api_call_number) + '.json')
 			with open(json_output, 'w') as json_file:
 				json_file.write(data)
 
-			api_call_number += 1
+				api_call_number += 1
+
+			else:
+				if api_call_number < 2:  # if not even one of the API calls worked
+					throw_error_message("ERROR: API call failed")
+					api_call.raise_for_status()  # raises error to quit this try loop so Metallaxis can use non-annotated h5
+				else:
+					# at least one the API calls worked, so continue using that annotation
+					throw_warning_message("Warning: The API call failed, only doing partial annotation")
+
+
+
 
 		# specify the columns we want to look for in the VEP JSONs
 		columns_to_annotate = ['impact', 'consequence_terms', 'gene_id', 'gene_symbol',
-		                       'biotype', 'distance', 'gene_symbol_source', 'transcript_id',
+							   'biotype', 'distance', 'gene_symbol_source', 'transcript_id',
 		                       'cdna_start', 'cdna_end', 'most_severe_consequence']
 		# calculate what annotation_columns will be made so they can all be set to default
 		# values even if one of the json makes no mention of such a column. we defined
@@ -981,7 +994,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			with open(json_file) as json_input:
 				json_raw_data = json.load(json_input)
 
-			# loop through all the dictionaries embeded in the JSON object
+			# loop through all the dictionaries embedded in the JSON object
 			for data in json_raw_data:
 				# if returned JSON has a transcript_consequence extract its
 				# data and add to h5 file
@@ -1017,18 +1030,17 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 						# only update progress bar every 20 lines to avoid performance hit
 						# from doing it every line
 						if annotate_nb % 20 == 0:
-							annotate_len = (len(api_ids) * len(data))
+							annotate_len = (len(all_hdf5_ids) * len(data))
 							annotate_progress = annotate_percent + (annotate_nb / annotate_len) *  (70 - annotate_percent)
 							self.progress_bar(float(annotate_progress), "Annotate H5: writing annotated chunk to temporary h5")
 
 						# get h5 row from id and add JSON data to it and add it to a different h5
-						api_id = data['id']
-						# see if using input instead of id makes a diff
-						api_alt = subdata['variant_allele']
+						annotation_id = data['id']
+						annotation_alt = subdata['variant_allele']
 
 						# get unannotated row with id that match annotated row and have same ALT
 						selected_h5_row = pd.read_hdf(h5_output_name, key="df", where=(
-								"ID=='" + api_id + "' and ALT=='" + api_alt + "'"))
+								"ID=='" + annotation_id + "' and ALT=='" + annotation_alt + "'"))
 
 						if not selected_h5_row.empty:
 							# get annotation information if it exists else insert a "."
@@ -1060,54 +1072,39 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 								selected_h5_row[column] = selected_h5_row[column].apply(str)
 
 							# Append the row to h5 database
-							annotated_h5_tmp.append("df", selected_h5_row, index=False, data_columns=True,
-							                        min_itemsize=100, complib=complib, complevel=int(complevel))
-							annotated_row_ids.append(api_id)
+							annotated_h5_tmp.append("df", selected_h5_row, index=False, data_columns=True, min_itemsize=100, complib=complib, complevel=int(complevel))
+
+							annotated_row_ids.append(annotation_id)
 							annotate_nb += 1
 
 
 		# read through vcf again, and load rows with no annotation-friendly IDs to a new h5 database
-		annotate_nb = 0
-		annotate_percent = 70
-		chunked_vcf_len = sum(1 for row in open(selected_vcf, 'r'))
 		self.progress_bar(70, "Annotate H5: writing non-annotated chunk to temporary h5")
-		for id in api_ids:
-			if id not in annotated_row_ids:
-				non_annotated_h5_row = pd.read_hdf(h5_output_name, key="df", where=(
-						"ID=='" + id + "'"))
-				if not non_annotated_h5_row.empty:
-					for col in annotation_columns:
-						non_annotated_h5_row[col] = "."
 
-					for column in non_annotated_h5_row:
-						non_annotated_h5_row[column] = non_annotated_h5_row[column].apply(str)
+		# get all rows from non-annoted h5, except which have IDs in annotated_row_ids
+		non_annotated_h5_row = pd.read_hdf(h5_output_name, key="df")
+		non_annotated_h5_row = non_annotated_h5_row[~non_annotated_h5_row.ID.isin(annotated_row_ids)]
 
-					print("getting row")
-					annotated_h5_tmp.append("df", non_annotated_h5_row, index=False, data_columns=True,
-					                        min_itemsize=80, complib=complib, complevel=int(complevel))
-					print(non_annotated_h5_row)
-					print("got row")
+		if not non_annotated_h5_row.empty:
+			for col in annotation_columns:
+				non_annotated_h5_row[col] = "."
 
-					# only update progress bar every 20 lines to avoid
-					# performance hit from doing it every line
-					if annotate_nb % 20 == 0:
-						annotate_progress = annotate_percent + (annotate_nb / chunked_vcf_len) * (80 - annotate_percent)
-						self.progress_bar(float(annotate_progress), "Annotate H5: writing non-annotated chunk to temporary h5")
-					annotate_nb += 1
+			for column in non_annotated_h5_row:
+				non_annotated_h5_row[column] = non_annotated_h5_row[column].apply(str)
+
+			annotated_h5_tmp.append("df", non_annotated_h5_row, index=False, data_columns=True,
+									min_itemsize=100, complib=complib, complevel=int(complevel))
 
 		annotated_h5_tmp.close()
 
-		print("tmp file closed")
 
 		# Read the just written h5 file replacing all "." with NaN which is read as NULL instead of a string, convert
 		# columns containing only numbers to numeric datatype, and remove columns with no data for any row
 		annotated_numeric_columns = list(numeric_columns) + list(annotation_columns)
 		print(annotated_numeric_columns)
 
-		print("start read")
 		annotated_tmp_read_obj = pd.read_hdf(annotated_h5_tmp_name, key="df")
 		annotated_tmp_read_obj = annotated_tmp_read_obj.replace(".", np.NaN)
-		print("replaced empties")
 
 		for column in annotated_tmp_read_obj.keys():
 			set_col_to_numeric_if_isdigit(column, annotated_tmp_read_obj, annotated_numeric_columns)
@@ -1121,11 +1118,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# save appended dataframe to new h5 file and remove the temporary one
 		annotated_tmp_read_obj.to_hdf(annotated_h5_output_name, key='df', mode='w', format='table', data_columns=True, complib=complib, complevel=int(complevel))
 
-
 		if os.path.exists(annotated_h5_tmp_name):
 			os.remove(annotated_h5_tmp_name)
 
-		# embed metadat and statistics in new H5
+		# embed metadata and statistics in new H5
 		h5_file = pd.HDFStore(annotated_h5_output_name)
 		for metadata_line_nb in metadata_dict:
 			metadata_tag = str(metadata_dict[metadata_line_nb][1])
@@ -1181,8 +1177,6 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		# get column numbers for ID, POS, etc.
 		self.progress_bar(47,"Extracting column data")
-		print( complete_h5_file )
-		print(complete_h5_file.keys())
 
 		column_names = list(complete_h5_file.keys())
 		global chrom_col, id_col, pos_col, ref_col, alt_col, qual_col
@@ -1438,7 +1432,7 @@ if __name__ == '__main__':
 		if MetallaxisGui_object.MetallaxisSettings.annotation_checkbox.isChecked():
 			if h5_only is not True:
 				try:
-					complete_h5_file = MetallaxisGui_object.annotate_h5(complete_h5_file, selected_vcf)
+					complete_h5_file = MetallaxisGui_object.annotate_h5(h5_file, selected_vcf)
 					complete_h5_file = pd.read_hdf(complete_h5_file, key="df")
 				except:
 					throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
