@@ -767,7 +767,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				metadata_line = pd.DataFrame(
 					metadata_line, index=[metadata_line_nb])
 				h5_file.append("metadata", metadata_line, data_columns=True,
-				               min_itemsize=150, complib=complib, complevel=int(complevel))
+							   min_itemsize=150, complib=complib, complevel=int(complevel))
 
 		h5_stat_table_index = 0
 		for var_counts_key, var_counts_value in var_counts.items():
@@ -782,17 +782,17 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				var_counts_line, index=[h5_stat_table_index])
 
 			h5_file.append("stats", var_counts_line, data_columns=True,
-			               min_itemsize=250, complib=complib, complevel=int(complevel))
+						   min_itemsize=250, complib=complib, complevel=int(complevel))
 			h5_stat_table_index += 1
 
 		chunked_vcf_len = sum(1 for row in open(decompressed_file, 'r'))
 		chunked_vcf = pd.read_csv(selected_vcf,
-		                          delim_whitespace=True,
-		                          skiprows=range(0, metadata_num - 1),
-		                          chunksize=int(h5chunksize),
-		                          low_memory=False,
-		                          # make default data type an object (ie. string)
-		                          dtype=object)
+								  delim_whitespace=True,
+								  skiprows=range(0, metadata_num - 1),
+								  chunksize=int(h5chunksize),
+								  low_memory=False,
+								  # make default data type an object (ie. string)
+								  dtype=object)
 		annotate_nb = 0
 		annotate_percent = 35
 
@@ -803,12 +803,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		global info_cols_to_add
 		info_cols_to_add = set()
 		chunked_vcf = pd.read_csv(selected_vcf,
-		                          delim_whitespace=True,
-		                          skiprows=range(0, metadata_num - 1),
-		                          chunksize=int(h5chunksize),
-		                          low_memory=False,
-		                          # make default data type an object (ie. string)
-		                          dtype=object)
+								  delim_whitespace=True,
+								  skiprows=range(0, metadata_num - 1),
+								  chunksize=int(h5chunksize),
+								  low_memory=False,
+								  # make default data type an object (ie. string)
+								  dtype=object)
 
 		# Run through every chunk of the whole VCF and get the key out of the
 		# key:value pair and add to a set (so no duplicates will be added) that
@@ -823,12 +823,12 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 
 		global table_column_names
 		chunked_vcf = pd.read_csv(selected_vcf,
-		                          delim_whitespace=True,
-		                          skiprows=range(0, metadata_num - 1),
-		                          chunksize=int(h5chunksize),
-		                          low_memory=False,
-		                          # make default data type an object (ie. string)
-		                          dtype=object)
+								  delim_whitespace=True,
+								  skiprows=range(0, metadata_num - 1),
+								  chunksize=int(h5chunksize),
+								  low_memory=False,
+								  # make default data type an object (ie. string)
+								  dtype=object)
 		for chunk in chunked_vcf:
 			# set the new info column names to be empty by default
 			for col in info_cols_to_add:
@@ -886,13 +886,13 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			# of refreshing the whole GUI at every line
 			if annotate_nb % 20 == 0:
 				annotate_progress = annotate_percent + \
-				                    (annotate_nb / chunked_vcf_len) * (43 - annotate_percent)
+									(annotate_nb / chunked_vcf_len) * (43 - annotate_percent)
 				self.progress_bar(
 					float(annotate_progress), "Encoding H5 database")
 
 			# append the modified chunk to the h5 database without indexing
 			h5_file.append("df", chunk, index=False, data_columns=True,
-			               min_itemsize=80, complib=complib, complevel=int(complevel))
+						   min_itemsize=80, complib=complib, complevel=int(complevel))
 			annotate_nb += 1
 
 		# index columns explicitly, now that we have finished adding data to it
@@ -957,8 +957,8 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				data = api_call.text
 				# save sublist's API response as a JSON
 				json_output = os.path.join(working_directory, 'VEP_API_' + str(api_call_number) + '.json')
-			with open(json_output, 'w') as json_file:
-				json_file.write(data)
+				with open(json_output, 'w') as json_file:
+					json_file.write(data)
 
 				api_call_number += 1
 
@@ -976,7 +976,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 		# specify the columns we want to look for in the VEP JSONs
 		columns_to_annotate = ['impact', 'consequence_terms', 'gene_id', 'gene_symbol',
 							   'biotype', 'distance', 'gene_symbol_source', 'transcript_id',
-		                       'cdna_start', 'cdna_end', 'most_severe_consequence']
+							   'cdna_start', 'cdna_end', 'most_severe_consequence']
 		# calculate what annotation_columns will be made so they can all be set to default
 		# values even if one of the json makes no mention of such a column. we defined
 		# columns_to_annotate but if there are multiple values for the defined columns
@@ -1131,7 +1131,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				metadata_line = pd.DataFrame(
 					metadata_line, index=[metadata_line_nb])
 				h5_file.append("metadata", metadata_line, data_columns=True,
-				               min_itemsize=150, complib=complib, complevel=int(complevel))
+							   min_itemsize=150, complib=complib, complevel=int(complevel))
 
 		h5_stat_table_index = 0
 		for var_counts_key, var_counts_value in var_counts.items():
@@ -1146,7 +1146,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				var_counts_line, index=[h5_stat_table_index])
 
 			h5_file.append("stats", var_counts_line, data_columns=True,
-			               min_itemsize=100, complib=complib, complevel=int(complevel))
+						   min_itemsize=100, complib=complib, complevel=int(complevel))
 			h5_stat_table_index += 1
 
 		h5_file.create_table_index("df", columns=table_column_names, optlevel=9, kind='full')
@@ -1246,22 +1246,23 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			graph.legend()
 			self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
-		# plot piechart of proportions of types of ALT
-		# get the value for each ALT_Types key in order, per type of Alt so it can be graphed
-		alt_values_to_plot = []
-		for alt in ALT_Types:
-			dict_key = alt + "_Alt_Count"
-			alt_values_to_plot.append(var_counts[dict_key])
+		if "ALT_Types" in var_counts:
+			# plot piechart of proportions of types of ALT
+			# get the value for each ALT_Types key in order, per type of Alt so it can be graphed
+			alt_values_to_plot = []
+			for alt in ALT_Types:
+				dict_key = alt + "_Alt_Count"
+				alt_values_to_plot.append(var_counts[dict_key])
 
-		total_figure = plt.figure()
-		graph = total_figure.add_subplot(111)
-		graph.pie(alt_values_to_plot, labels=ALT_Types, autopct='%1.1f%%')
-		# installer les axes de x et y sont egals pour assurer le rond
-		graph.axis('equal')
-		plt.title('Proportion of different mutations')
-		total_figure.tight_layout()
-		graph.legend()
-		self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
+			total_figure = plt.figure()
+			graph = total_figure.add_subplot(111)
+			graph.pie(alt_values_to_plot, labels=ALT_Types, autopct='%1.1f%%')
+			# installer les axes de x et y sont egals pour assurer le rond
+			graph.axis('equal')
+			plt.title('Proportion of different mutations')
+			total_figure.tight_layout()
+			graph.legend()
+			self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
 		# plot piechart of proportions of types of ALT
 		# get the nb of mutations for each chromosome
@@ -1269,6 +1270,7 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 			values_to_plot = []
 			global list_chromosomes  # we're editing a global so it needs to be declared global again
 			list_chromosomes = eval(var_counts['List_Chromosomes'])
+			list_chromosomes = list(list_chromosomes)
 			for chrom in list_chromosomes:
 				dict_key = chrom + "_Chrom_Variant_Count"
 				if dict_key in var_counts:
@@ -1278,11 +1280,10 @@ class MetallaxisGui(gui_base_object, gui_window_object):
 				total_figure = plt.figure()
 				graph = total_figure.add_subplot(111)
 				graph.bar(list(list_chromosomes), values_to_plot)
-				plt.title('distribution of mutations by chromosome')
-				plt.xlabel('chromosome')
-				plt.ylabel('number of variants')
+				plt.title('Distribution of Mutations by Chromosome')
+				plt.xlabel('Chromosome')
+				plt.ylabel('Number of Variants')
 				total_figure.tight_layout()
-				graph.legend()
 				self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
 
@@ -1375,6 +1376,7 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		qtRectangle = self.frameGeometry()
 		centerPoint = QDesktopWidget().availableGeometry().center()
 		qtRectangle.moveCenter(centerPoint)
+		self.setMinimumSize(self.sizeHint())
 
 
 if __name__ == '__main__':
