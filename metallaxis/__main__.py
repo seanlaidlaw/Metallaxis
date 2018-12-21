@@ -34,6 +34,7 @@ from PyQt5.QtWidgets import QApplication, QMessageBox, QDesktopWidget
 # for plotting graphs
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
+plt.style.use('seaborn')
 
 import time
 
@@ -1232,6 +1233,12 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			var_counts_key = str(line[0])
 			var_counts_value = str(line[1])
 			var_counts[var_counts_key] = var_counts_value
+
+			# increase readability by showing a space instead of _ on interface (e.g. "1 Chrom Indel Count"
+			# insetad of 1_Chrom_Indel_Count
+			var_counts_key = var_counts_key.replace("_", " ")
+
+			# add statistics dictionary data to interface, as labels
 			new_label = QtWidgets.QLabel(str(var_counts_key), self)
 			new_label.setWordWrap(True)
 			self.dynamic_stats_key_label.addWidget(new_label)
@@ -1291,6 +1298,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			if values_to_plot != []:
 				total_figure = plt.figure()
 				graph = total_figure.add_subplot(111)
+				# convert items in values_to_plot to int, so that matplotlib orders them correctly
+				values_to_plot = [int(x) for x in values_to_plot]
 				graph.bar(list(list_chromosomes), values_to_plot)
 				plt.title('Distribution of Mutations by Chromosome')
 				plt.xlabel('Chromosome')
