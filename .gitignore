@@ -35,3 +35,7 @@ ipython_config.py
 
 # pyenv
 .python-version
+
+metallaxis/__pycache__/
+
+\.idea/
