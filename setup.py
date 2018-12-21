@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
 	name="Metallaxis",
-	version="0.7",
+	version="0.8",
 	license='GPLv3',
 	author="Sean Laidlaw",
 	author_email="seanlaidlaw95@gmail.com",
