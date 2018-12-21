@@ -438,8 +438,6 @@
     <addaction name="actionSave_as_HDF5"/>
     <addaction name="actionSettings"/>
     <addaction name="separator"/>
-    <addaction name="actionExport_Report"/>
-    <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
    <widget class="QMenu" name="menuHelp">

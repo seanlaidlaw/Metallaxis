@@ -935,6 +935,13 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		self.actionGithub_Page.triggered.connect(open_github)
 
+		# Link "Documentation" button on menu to its URL
+		def open_docs(url):
+			url = "https://metallaxis.readthedocs.io"
+			QDesktopServices.openUrl(QtCore.QUrl(url))
+
+		self.actionMetallaxis_Documentation.triggered.connect(open_docs)
+
 		def open_about_tab():
 			self.tabWidget.setCurrentIndex(3)
 
