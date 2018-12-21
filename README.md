@@ -87,8 +87,9 @@ Changing the Species to "Human" in the Settings window allows you to check "Anno
 ![settings_annot_off](img/interface_settings_annotation_off.png)
 ![settings_annot_on](img/interface_settings_annotation_on.png)
 
-Example variant data displaying statistics of variants by chromosome, types of variants, and averages. 
+Example variant data displaying statistics of variants by chromosome, types of variants, and averages. As well as number of variants by position for each chromosome.
 ![window_statistics](img/interface_window_statistics.png)
+![window_statistics_pos](img/interface_window_statistics_pos.png)
 
 Example variant data with VEP annotation listing consequence terms, biotype, gene id, impact, etc. for some of our variants.
 

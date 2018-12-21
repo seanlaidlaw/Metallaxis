@@ -1307,6 +1307,59 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				total_figure.tight_layout()
 				self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
+		self.chrom_selection_stat_comboBox.addItems(list_chromosomes)
+		# setup variants by position graph for first chromosome in list
+		if list_chromosomes[0]:
+			self.changed_chrom_stat_combobox(list_chromosomes[0])
+		# if selected chromosome changes, create new graph for variants by position for chosen chromosome
+		self.chrom_selection_stat_comboBox.currentTextChanged.connect(self.changed_chrom_stat_combobox)
+
+	def changed_chrom_stat_combobox(self, chrom=None):
+		"""
+		This function is run on changing the combobox on the statistics pane. On changing chromosome it
+		will generate a new matplotlib graph for the chosen chromosome (which can be given as an
+		argument to override combobox choice).
+		"""
+		# if no optional argument is provided then read chrom selection, from combobox
+		if chrom == None:
+			chrom = self.chrom_selection_stat_comboBox.currentText()
+		chrom_data_subset_variants = []
+		chrom_data_subset_ranges = []
+		# empty layout from previous selection
+		self.empty_qt_layout(self.chrom_stat_plot_layout)
+
+		# avoid type errors by making chrom an int if its in numeric_columns
+		if 'CHROM' in numeric_columns:
+			chrom = int(chrom)
+
+		# filter complete_h5_file to only results from chosen chromosome
+		chrom_data = complete_h5_file[(complete_h5_file['CHROM'] == chrom)]
+		min_pos = chrom_data['POS'].min()
+		max_pos = chrom_data['POS'].max()
+		# calculate the size of the chromosome based on smallest and largest POS values
+		chrom_size = max_pos - min_pos
+		# divide that size up so we can see variants by each part of the chromosome
+		chrom_size_10 = int(chrom_size / 12)
+		for i in range(min_pos, max_pos, chrom_size_10):
+			if i != min_pos:  # don't count first one as there will be no data
+				chrom_data_subset_range = str(i - chrom_size_10) + "-" + str(i)
+				chrom_data_subset_filter = (chrom_data['POS'] >= (i - chrom_size_10)) & (chrom_data['POS'] <= i)
+				chrom_data_subset_vars = len(chrom_data.loc[chrom_data_subset_filter])
+
+				chrom_data_subset_ranges.append(chrom_data_subset_range)
+				chrom_data_subset_variants.append(chrom_data_subset_vars)
+
+		# plot data into bar plots
+		total_figure = plt.figure()
+		graph = total_figure.add_subplot(111)
+		graph.bar(chrom_data_subset_ranges, chrom_data_subset_variants)
+		plt.title('Distribution of Variants by Position in Chr ' + str(chrom))
+		plt.xticks(rotation=70)
+		plt.xlabel('Position in Chr ' + chrom)
+		plt.ylabel('Number of Variants')
+		total_figure.tight_layout()
+		self.chrom_stat_plot_layout.addWidget(FigureCanvas(total_figure))
+
 	def populate_table(self, selected_h5_data):
 		if selected_h5_data is None:
 			throw_error_message("Can't Populate Table: was passed a None object. Verify input H5 or VCF is not currupt")
