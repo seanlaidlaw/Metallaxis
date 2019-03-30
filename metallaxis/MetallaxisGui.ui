@@ -189,99 +189,48 @@
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_3">
             <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_4">
-              <property name="topMargin">
+             <layout class="QVBoxLayout" name="stat_plot_layout">
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
                <number>0</number>
               </property>
               <item>
-               <layout class="QVBoxLayout" name="verticalLayout_5">
-                <property name="bottomMargin">
-                 <number>0</number>
+               <widget class="QScrollArea" name="scrollArea_2">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <item>
-                 <widget class="QLabel" name="label_2">
-                  <property name="text">
-                   <string>Variant Count by Chromosome</string>
-                  </property>
-                  <property name="wordWrap">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="Line" name="line">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_2">
-                  <property name="rightMargin">
-                   <number>0</number>
-                  </property>
-                  <item>
-                   <layout class="QVBoxLayout" name="dynamic_stats_key_label">
-                    <property name="leftMargin">
-                     <number>0</number>
-                    </property>
-                   </layout>
-                  </item>
-                  <item>
-                   <layout class="QVBoxLayout" name="dynamic_stats_value_label"/>
-                  </item>
-                 </layout>
-                </item>
-                <item>
-                 <spacer name="verticalSpacer_4">
-                  <property name="orientation">
-                   <enum>Qt::Vertical</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>20</width>
-                    <height>40</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QVBoxLayout" name="stat_plot_layout">
-                <property name="rightMargin">
-                 <number>0</number>
+                <property name="widgetResizable">
+                 <bool>true</bool>
                 </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item>
-                 <widget class="QScrollArea" name="scrollArea_2">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="widgetResizable">
-                   <bool>true</bool>
-                  </property>
-                  <widget class="QWidget" name="scrollAreaWidgetContents_2">
-                   <property name="geometry">
-                    <rect>
-                     <x>0</x>
-                     <y>0</y>
-                     <width>365</width>
-                     <height>179</height>
-                    </rect>
-                   </property>
-                   <layout class="QVBoxLayout" name="verticalLayout_8"/>
-                  </widget>
-                 </widget>
-                </item>
-               </layout>
+                <widget class="QWidget" name="scrollAreaWidgetContents_2">
+                 <property name="geometry">
+                  <rect>
+                   <x>0</x>
+                   <y>0</y>
+                   <width>747</width>
+                   <height>76</height>
+                  </rect>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_8"/>
+                </widget>
+               </widget>
               </item>
              </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="dont_delete_me_i_keep_scroll_working">
+              <property name="text">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p/&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
             </item>
             <item>
              <widget class="Line" name="line_2">
@@ -436,7 +385,7 @@
           <item>
            <widget class="QLabel" name="label">
             <property name="text">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Metallaxis&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Version 1.0&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Copyright © 2018 Sean LAIDLAW, Qiqi HE.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Some rights reserved.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt; is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License version 3 as published by the Free Software Foundation.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;You should have received a copy of the GNU General Public License along with &lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt;. If not, see http://www.gnu.org/licenses.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;@license GPL-3.0+ http://spdx.org/licenses/GPL-3.0+&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Metallaxis&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Version 1.0&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Copyright © 2018 Sean LAIDLAW&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Some rights reserved.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt; is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License version 3 as published by the Free Software Foundation.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;You should have received a copy of the GNU General Public License along with &lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt;. If not, see http://www.gnu.org/licenses.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;@license GPL-3.0+ http://spdx.org/licenses/GPL-3.0+&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="scaledContents">
              <bool>true</bool>
@@ -486,7 +435,7 @@
     <addaction name="actionAbout"/>
     <addaction name="separator"/>
     <addaction name="actionOpen_VCF"/>
-    <addaction name="actionSave_as_HDF5"/>
+    <addaction name="actionSave_Analysis"/>
     <addaction name="actionSettings"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
@@ -495,8 +444,6 @@
     <property name="title">
      <string>Help</string>
     </property>
-    <addaction name="actionMetallaxis_Documentation"/>
-    <addaction name="separator"/>
     <addaction name="actionGithub_Page"/>
     <addaction name="separator"/>
    </widget>
@@ -573,9 +520,9 @@
     <string>Save Annotation</string>
    </property>
   </action>
-  <action name="actionSave_as_HDF5">
+  <action name="actionSave_Analysis">
    <property name="text">
-    <string>Save as HDF5</string>
+    <string>Save Analysis</string>
    </property>
   </action>
  </widget>

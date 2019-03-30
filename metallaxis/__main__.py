@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import json
 import os
 import pathlib  # for making the folder where we store data
 import platform  # for determining OS and therefore where to store data
 import re
 import sys
-import tracemalloc
-from shutil import copyfile  # for save hdf5 to work
+from shutil import copyfile  # for save analysis
 
 import magic  # to detect filetype from file header
 import numpy as np  # to handle arrays and NaN
-import pandas as pd  # to handle dataframes and hdf5 files
-import requests  # handle API requests
+import pandas as pd  # to handle dataframes
+import sqlite3 # handle sqlite db
 
 # to handle compressed VCFs
 import lzma
@@ -35,10 +33,6 @@ from PyQt5.QtWidgets import QApplication, QMessageBox, QDesktopWidget
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 plt.style.use('seaborn')
-
-import time
-
-start_time = time.time()
 
 # allow <Ctrl-c> to terminate the GUI
 import signal
@@ -66,14 +60,10 @@ MetPROGui = os.path.join(current_file_dir, "MetallaxisProgress.ui")
 
 
 # Temporary file names
-global h5_output_name, annotated_h5_output_name, vcf_output_filename
-h5_output_name = os.path.join(working_directory, 'input.h5')
-annotated_h5_tmp_name = os.path.join(
-	working_directory, 'input_annotated_tmp.h5')
-annotated_h5_output_name = os.path.join(
-	working_directory, 'input_annotated.h5')
-vcf_output_filename = os.path.join(
-	working_directory, 'vcf_output_filename.vcf')
+global sqlite_output_name, vcf_output_filename
+sqlite_output_name = os.path.join(working_directory, 'database.sqlite')
+sqlite_connection = sqlite3.connect(sqlite_output_name)
+vcf_output_filename = os.path.join( working_directory, 'vcf_output_filename.vcf')
 
 
 def throw_warning_message(warning_message):
@@ -127,18 +117,19 @@ def decompress_vcf(type_of_compression, vcf_input_filename, headonly_bool=False,
 		return vcf_output_filename
 
 
+def is_number_bool(sample):
+	try:
+		float(sample)
+	except:
+		return False
+	return True
+
 def set_col_to_numeric_if_isdigit(column, chunk, numeric_columns_list):
 	"""
 	Determines which columns of a given chunk are ints or floats, and removes
 	them from a list of columns if they are neither.
 	"""
 
-	def is_number_bool(sample):
-		try:
-			float(sample)
-		except:
-			return False
-		return True
 
 	def del_col(column):
 		if column in numeric_columns_list:
@@ -158,27 +149,22 @@ def set_col_to_numeric_if_isdigit(column, chunk, numeric_columns_list):
 					numeric_columns_list.remove(column)
 
 
-def load_hdf5(hdf5_filename):
+def load_sqlite(sqlite_filename):
 	"""
-	Loads a previously created .h5 file. If an analysis had already been done on a VCF
-	and the analysis file was saved in hdf5 format, it can be loaded here.
-	Accepts a h5 file as argument.
+	Loads a previously created .sqlite file. If an analysis had already been done on a VCF
+	and the analysis file was saved in sqlite format, it can be loaded here.
+	Accepts a sqlite3 file as argument.
 	"""
-	if os.path.isfile(hdf5_filename):
-		# global h5_input_name
-		# h5_input_name = sys.argv[1]
-
-		MetallaxisGui.loaded_vcf_lineedit.setText(os.path.abspath(hdf5_filename))
-		try:
-			complete_h5_file = pd.read_hdf(hdf5_filename)
-		except ValueError:
-			complete_h5_file = pd.read_hdf(hdf5_filename, key="df")
-		return complete_h5_file
+	if os.path.isfile(sqlite_filename):
+		# Verify file exists and return its read object
+		MetallaxisGui.loaded_vcf_lineedit.setText(os.path.abspath(sqlite_filename))
+		loaded_db_connection = sqlite3.connect(sqlite_filename)
+		complete_sqlite_file = pd.read_sql("SELECT * FROM df", loaded_db_connection)
+		return complete_sqlite_file
 
 	else:
-		# return error if h5 doesn't exist
 		throw_error_message("Selected file does not \
-		exist. You specified : " + str(hdf5_filename))
+		exist. You specified : " + str(sqlite_filename))
 
 
 def verify_file(selected_vcf):
@@ -225,7 +211,7 @@ def verify_vcf(decompressed_file_head):
 
 	line_num = 0
 	variant_num = 0
-	global metadata_num  # make global as this will be used in h5_encode
+	global metadata_num  # make global as this will be used in database_encode
 	# make a list of mandatory columns in VCF we need to find for a VCF to be valid
 	expected_columns = ['#CHROM', 'POS', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO']
 
@@ -301,7 +287,7 @@ def verify_vcf(decompressed_file_head):
 								return False
 			variant_num += 1
 
-		# set global variable to be total number of lines of metadata (will be used to extract just the data in h5_encode()
+		# set global variable to be total number of lines of metadata (will be used to extract just the data in database_encode()
 		metadata_num = int(line_num - variant_num)
 
 	# return Error or warning depending on variant numbers
@@ -422,16 +408,12 @@ def parse_vcf(vcf_input_filename):
 
 				if len(line[ref_col]) == len(line[alt_col]):
 					variant_stats["Total_SNP_Count"] += 1
-					add_to_dict_iterator(
-						variant_stats, line[chrom_col] + "_Chrom_SNP_Count", 1)
-					add_to_dict_iterator(
-						variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
+					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_SNP_Count", 1)
+					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
 				else:
 					variant_stats["Total_Indel_Count"] += 1
-					add_to_dict_iterator(
-						variant_stats, line[chrom_col] + "_Chrom_Indel_Count", 1)
-					add_to_dict_iterator(
-						variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
+					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_Indel_Count", 1)
+					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
 					length_of_all_indels += len(line[alt_col])
 
 	total_chrom_snp_count, total_chrom_indel_count = 0, 0
@@ -490,14 +472,16 @@ def parse_vcf(vcf_input_filename):
 	return metadata_dict, variant_stats, decompressed_file
 
 
-def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
+def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 	"""
-	accepts as input a raw vcf file, and optionally, dictionaries for variant counts (variant_stats) and metadata
-	(metadata_dict). Then encodes them as tables into a HDF5 file. Returns filename of created HDF5.
+	accepts as input a raw vcf file, and dictionaries for variant counts (variant_stats) and metadata
+	(metadata_dict). Then encodes them as tables into a database.
+	Returns filename of created sqlite database.
 	"""
-	h5_file = pd.HDFStore(h5_output_name, mode='w')
+	os.remove(sqlite_output_name)
+	sqlite_output = sqlite3.connect(sqlite_output_name)
 
-	# write each entry from metadata_dict to a new table in a HDF5 file
+	# write each entry from metadata_dict to a new "metadata" table in database
 	for metadata_line_nb in metadata_dict:
 		metadata_tag = str(metadata_dict[metadata_line_nb][1])
 		metadata_result = str(metadata_dict[metadata_line_nb][2])
@@ -505,11 +489,11 @@ def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 			metadata_line = {'Tag': metadata_tag, 'Result': metadata_result}
 			metadata_line = pd.DataFrame(
 				metadata_line, index=[metadata_line_nb])
-			h5_file.append("metadata", metadata_line, data_columns=True,
-			               min_itemsize=150, complib=complib, complevel=int(complevel))
 
-	# write each entry from  to a new table in a HDF5 file
-	h5_stat_table_index = 0
+			metadata_line.to_sql('metadata', sqlite_output, if_exists='append', index=False)
+
+	# write each entry to a new "stats" table in database
+	stat_table_index = 0
 	for key, value in variant_stats.items():
 		key = str(key)
 		value = str(value)
@@ -519,11 +503,10 @@ def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 			value = value[:200] + "..."
 		variant_stats_line = {'Tag': key, 'Result': value}
 		variant_stats_line = pd.DataFrame(
-			variant_stats_line, index=[h5_stat_table_index])
+			variant_stats_line, index=[stat_table_index])
 
-		h5_file.append("stats", variant_stats_line, data_columns=True,
-		               min_itemsize=250, complib=complib, complevel=int(complevel))
-		h5_stat_table_index += 1
+		variant_stats_line.to_sql('stats', sqlite_output, if_exists='append', index=False)
+		stat_table_index += 1
 
 	chunked_vcf_len = sum(1 for row in open(decompressed_file, 'r'))
 
@@ -541,7 +524,7 @@ def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 	                          # skip rows that started with "#"
 	                          skiprows=range(0, metadata_num - 1),
 	                          # use chunk size that was set in settings
-	                          chunksize=int(h5chunksize),
+	                          chunksize=int(chunk_size),
 	                          low_memory=False,
 	                          # make default data type an object (ie. string)
 	                          dtype=object)
@@ -561,7 +544,7 @@ def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 	chunked_vcf = pd.read_csv(selected_vcf,
 	                          delim_whitespace=True,
 	                          skiprows=range(0, metadata_num - 1),
-	                          chunksize=int(h5chunksize),
+	                          chunksize=int(chunk_size),
 	                          low_memory=False,
 	                          # make default data type an object (ie. string)
 	                          dtype=object)
@@ -592,8 +575,21 @@ def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 						chunk[key_to_add].values[line_nb] = "True"
 			line_nb += 1
 
+		# TODO: uncomment the following
+		# Convert Chrom to string and prefix with 0 if numeric and less than 10 to avoid sorting problems
+		# line_nb = 0
+		# for line in chunk["#CHROM"]:
+		# 	if is_number_bool(line) is True:
+		# 		if int(line) < 10:
+		# 			chunk["#CHROM"][line_nb] = "0" + str(line)
+		#
+		# 	line_nb += 1
+
 		# Rename column so we get 'CHROM' not '#CHROM' from chunk.keys()
 		chunk.rename(columns={'#CHROM': 'CHROM'}, inplace=True)
+
+		# Get rid of INFO column now that it exists as multiple columns
+		chunk = chunk.drop(columns=['INFO'])
 
 		# set variable table_column_names to have both normal VCF
 		# columns and the parsed columns from INFO column
@@ -608,7 +604,7 @@ def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 		# non-numeric columns from the list
 		global numeric_columns
 		numeric_columns = table_column_names
-
+		#
 		chunk = chunk.replace(".", np.NaN)
 
 		# run the function for every column to remove non-numeric columns
@@ -619,279 +615,10 @@ def h5_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
 		for column in numeric_columns:
 			chunk[column] = pd.to_numeric(chunk[column])
 
-		# only update progress bar every 20 lines to avoid performance hit
-		# of refreshing the whole GUI at every line
-		if annotate_nb % 20 == 0:
-			annotate_progress = annotate_percent + \
-			                    (annotate_nb / chunked_vcf_len) * (43 - annotate_percent)
-			MetallaxisGui.progress_bar(
-				float(annotate_progress), "Encoding H5 database")
-
-		# append the modified chunk to the h5 database without indexing
-		h5_file.append("df", chunk, index=False, data_columns=True,
-		               min_itemsize=80, complib=complib, complevel=int(complevel))
+		chunk.to_sql('df', sqlite_output, if_exists='append', index=False)
 		annotate_nb += 1
 
-	# index columns explicitly, now that we have finished adding data to it
-	MetallaxisGui.progress_bar(46, "Indexing H5 database")
-	h5_file.create_table_index(
-		"df", columns=table_column_names, optlevel=9, kind='full')
-	h5_file.close()
-	return h5_output_name
-
-
-def annotate_h5(h5_output_name):
-	"""
-	Uses EBI's VEP API to annotate lines where ID is valid. This is still highly experimental,
-	it only works about 50% of the time and on small VCF files.
-
-	Accepts as input, filename of HDF5 store created by h5_encode.
-	Returns filename of annotated HDF5 store, if completes without errors.
-	"""
-	ebi_rest_api = "https://rest.ensembl.org"
-	ext = "/vep/human/id/"
-	headers = {"Content-Type": "application/json", "Accept": "application/json"}
-
-	all_hdf5_ids = []
-	hdf5_input_read = pd.read_hdf(h5_output_name, key="df")
-	hdf5_input_read = hdf5_input_read[hdf5_input_read.ID.notnull()]
-
-	if len(hdf5_input_read) == 0:
-		throw_warning_message("No ids in VCF, aborting annotation.")
-		raise IndexError  # raise error to quit annotation and use non-annotated h5
-
-	for line in hdf5_input_read.itertuples():
-		# turn tuple into a list, but exclude the first item of list
-		# because its the h5 index and not part of our original data
-		line = list(line)[1:]
-		# get the id from id_column and add it to all_hdf5_ids list
-		line_id = line[id_col]
-		# ids are strings so if we ave a valid non-null string add it as an ID to send to EBI
-		if type(line_id) == str:
-			if line_id != "." and line_id != "nan":
-				all_hdf5_ids.append(line_id)  # list of all ids in hdf5 input
-
-	if len(all_hdf5_ids) == 0:
-		# return an error if we have no IDs so that metallaxis can use the non-annotated h5 instead
-		throw_error_message("No valid ids to annotate in vcf")
-		raise IndexError
-
-	annotated_h5_tmp = pd.HDFStore(annotated_h5_tmp_name, mode='w')
-	annotated_row_ids = []
-
-	annotate_nb = 0
-	# divide our all_hdf5_ids list, into multiple sublists, and call API with sublists to avoid
-	# reaching the API's limit
-	api_call_number = 1
-	maximum_apis_to_send = 50
-	for i in range(0, len(all_hdf5_ids), maximum_apis_to_send):
-		# update progress bar dynamically based off current API call number out of total number of API calls to make
-		MetallaxisGui.progress_bar(51, "Annotate H5: Making API Call to EBI (" + str(api_call_number) +
-		                           "/" + str(int(round((len(all_hdf5_ids) / maximum_apis_to_send), 0) + 1)) + ")")
-		api_ids_sublist = all_hdf5_ids[i:i + maximum_apis_to_send]
-
-		formatted_api_ids_sublist = ','.join('"{0}"'.format(ind_id) for ind_id in api_ids_sublist)
-		formatted_api_ids_sublist = '{ "ids" : [' + formatted_api_ids_sublist + '] }'
-		api_call = requests.post(ebi_rest_api + ext, headers=headers, data=formatted_api_ids_sublist)
-
-		if api_call.ok:
-			data = api_call.text
-			# save sublist's API response as a JSON
-			json_output = os.path.join(working_directory, 'VEP_API_' + str(api_call_number) + '.json')
-			with open(json_output, 'w') as json_file:
-				json_file.write(data)
-
-			api_call_number += 1
-
-		else:
-			if api_call_number < 2:  # if not even one of the API calls worked
-				throw_error_message("API call failed")
-				api_call.raise_for_status()  # raises error to quit this try loop so Metallaxis can use non-annotated h5
-			else:
-				# at least one the API calls worked, so continue using that annotation
-				throw_warning_message("The API call failed, only doing partial annotation")
-
-	# specify the columns we want to look for in the VEP JSONs
-	columns_to_annotate = ['impact', 'consequence_terms', 'gene_id', 'gene_symbol',
-	                       'biotype', 'distance', 'gene_symbol_source', 'transcript_id',
-	                       'cdna_start', 'cdna_end', 'most_severe_consequence']
-	# calculate what annotation_columns will be made so they can all be set to default
-	# values even if one of the json makes no mention of such a column. we defined
-	# columns_to_annotate but if there are multiple values for the defined columns
-	# then new columns will be generated which will have to be filled with default values
-	# this avoids there being a "invalid combinate" error on appending the data to the h5
-
-	# Loop through all the JSONs, adding columns that match our columns_to_annotate list to our annotation_columns set. We do this because sometimes there are multiple values for each specified column and we want to know about all of them before we extract that information
-	MetallaxisGui.progress_bar(53, "Annotate H5: Parsing downloaded JSONs for annotations")
-	annotation_columns = set()
-	# loop through all the saved JSONs
-	for json_number in range(1, api_call_number):
-		json_file = os.path.join(working_directory, 'VEP_API_' + str(json_number) + '.json')
-
-		# open the json file as a JSON object
-		with open(json_file) as json_input:
-			json_raw_data = json.load(json_input)
-
-		# loop through all the dictionaries embedded in the JSON object
-		for data in json_raw_data:
-			# if returned JSON has a transcript_consequence extract its
-			# data and add to h5 file
-			if 'transcript_consequences' in data:
-				for subdata in data['transcript_consequences']:
-					for column in columns_to_annotate:
-						if column in subdata.keys():
-							if isinstance(subdata[column], list) and len(subdata[column]) > 1:
-								for each_col in range(1, len(subdata[column])):
-									annotation_columns.add((column + "_" + str(each_col)).upper())
-							else:
-								annotation_columns.add(column.upper())
-						else:
-							annotation_columns.add(column.upper())
-
-	MetallaxisGui.progress_bar(54, "Annotate H5: writing annotated chunk to temporary h5")
-	annotate_percent = 55
-	# for each json file generated from the API call, parse the previously found annotation
-	# columns from the JSON to our dataframe
-	for json_number in range(1, api_call_number):
-		json_file = os.path.join(working_directory, 'VEP_API_' + str(json_number) + '.json')
-
-		# open the json file as a JSON object
-		with open(json_file) as json_input:
-			json_raw_data = json.load(json_input)
-
-		# loop through all the dictionaries embedded in the JSON object
-		for data in json_raw_data:
-			# if returned JSON has a transcript_consequence extract its
-			# data and add to h5 file
-			if 'transcript_consequences' in data:
-				for subdata in data['transcript_consequences']:
-					# only update progress bar every 20 lines to avoid performance hit
-					# from doing it every line
-					if annotate_nb % 20 == 0:
-						annotate_len = (len(all_hdf5_ids) * len(data))
-						annotate_progress = annotate_percent + (annotate_nb / annotate_len) * (70 - annotate_percent)
-						MetallaxisGui.progress_bar(float(annotate_progress),
-						                           "Annotate H5: writing annotated chunk to temporary h5")
-
-					# get h5 row from id and add JSON data to it and add it to a different h5
-					annotation_id = data['id']
-					annotation_alt = subdata['variant_allele']
-
-					# get unannotated row with id that match annotated row and have same ALT
-					selected_h5_row = pd.read_hdf(h5_output_name, key="df", where=(
-							"ID=='" + annotation_id + "' and ALT=='" + annotation_alt + "'"))
-
-					if not selected_h5_row.empty:
-						# get annotation information if it exists else insert a "."
-						def get_annotation_for_columns(columns):
-							for column in columns:
-								if column in subdata.keys():
-									# for a given column (e.g. biotype, impact) there can be
-									# a list of values instead of just one value, to find out
-									# weather to add multiple columns or just set one we test
-									# if its a list and has more than 1 value
-									if isinstance(subdata[column], list) and len(subdata[column]) > 1:
-										for each_col in range(1, len(subdata[column])):
-											selected_h5_row[str(column + "_" + str(each_col)).upper()] = \
-												subdata[column][each_col]
-											annotation_columns.add((column + "_" + str(each_col)).upper())
-									else:
-										selected_h5_row[str(column).upper()] = subdata[column]
-										annotation_columns.add(column.upper())
-
-						# initialise all the found columns
-						for column in annotation_columns:
-							selected_h5_row[column] = "."
-
-						# run the function to replace the default "." with the real value if it exists
-						get_annotation_for_columns(columns_to_annotate)
-
-						# Convert all columns to strings
-						for column in selected_h5_row:
-							selected_h5_row[column] = selected_h5_row[column].apply(str)
-
-						# Append the row to h5 database
-						annotated_h5_tmp.append("df", selected_h5_row, index=False, data_columns=True, min_itemsize=100,
-						                        complib=complib, complevel=int(complevel))
-
-						annotated_row_ids.append(annotation_id)
-						annotate_nb += 1
-
-	# read through vcf again, and load rows with no annotation-friendly IDs to a new h5 database
-	MetallaxisGui.progress_bar(70, "Annotate H5: writing non-annotated chunk to temporary h5")
-
-	# get all rows from non-annoted h5, except which have IDs in annotated_row_ids
-	non_annotated_h5_row = pd.read_hdf(h5_output_name, key="df")
-	non_annotated_h5_row = non_annotated_h5_row[~non_annotated_h5_row.ID.isin(annotated_row_ids)]
-
-	if not non_annotated_h5_row.empty:
-		for col in annotation_columns:
-			non_annotated_h5_row[col] = "."
-
-		for column in non_annotated_h5_row:
-			non_annotated_h5_row[column] = non_annotated_h5_row[column].apply(str)
-
-		annotated_h5_tmp.append("df", non_annotated_h5_row, index=False, data_columns=True,
-		                        min_itemsize=100, complib=complib, complevel=int(complevel))
-
-	annotated_h5_tmp.close()
-
-	# Read the just written h5 file replacing all "." with NaN which is read as NULL instead of a string.
-	# convert columns containing only numbers to numeric datatype, and remove columns with no data for any row
-	annotated_numeric_columns = list(numeric_columns) + list(annotation_columns)
-	print(annotated_numeric_columns)
-
-	annotated_tmp_read_obj = pd.read_hdf(annotated_h5_tmp_name, key="df")
-	annotated_tmp_read_obj = annotated_tmp_read_obj.replace(".", np.NaN)
-
-	for column in annotated_tmp_read_obj.keys():
-		set_col_to_numeric_if_isdigit(column, annotated_tmp_read_obj, annotated_numeric_columns)
-
-	for column in annotated_numeric_columns:
-		annotated_tmp_read_obj[column] = pd.to_numeric(annotated_tmp_read_obj[column])
-
-	# remove columns that only contained null values
-	annotated_tmp_read_obj = annotated_tmp_read_obj.dropna(axis=1, how='all')
-
-	# save appended dataframe to new h5 file and remove the temporary one
-	annotated_tmp_read_obj.to_hdf(annotated_h5_output_name, key='df', mode='w', format='table', data_columns=True,
-	                              complib=complib, complevel=int(complevel))
-
-	if os.path.exists(annotated_h5_tmp_name):
-		os.remove(annotated_h5_tmp_name)
-
-	# embed metadata and statistics in new H5
-	h5_file = pd.HDFStore(annotated_h5_output_name)
-	for metadata_line_nb in metadata_dict:
-		metadata_tag = str(metadata_dict[metadata_line_nb][1])
-		metadata_result = str(metadata_dict[metadata_line_nb][2])
-		if not metadata_tag.isupper():
-			metadata_line = {'Tag': metadata_tag, 'Result': metadata_result}
-			metadata_line = pd.DataFrame(
-				metadata_line, index=[metadata_line_nb])
-			h5_file.append("metadata", metadata_line, data_columns=True,
-			               min_itemsize=150, complib=complib, complevel=int(complevel))
-
-	h5_stat_table_index = 0
-	for var_counts_key, var_counts_value in var_counts.items():
-		var_counts_key = str(var_counts_key)
-		var_counts_value = str(var_counts_value)
-		if len(var_counts_key) > 40:
-			var_counts_key = var_counts_key[:40] + "..."
-		if len(var_counts_value) > 60:
-			var_counts_value = var_counts_value[:60] + "..."
-		var_counts_line = {'Tag': var_counts_key, 'Result': var_counts_value}
-		var_counts_line = pd.DataFrame(
-			var_counts_line, index=[h5_stat_table_index])
-
-		h5_file.append("stats", var_counts_line, data_columns=True,
-		               min_itemsize=100, complib=complib, complevel=int(complevel))
-		h5_stat_table_index += 1
-
-	h5_file.create_table_index("df", columns=table_column_names, optlevel=9, kind='full')
-	h5_file.close()
-
-	return annotated_h5_output_name
+	return sqlite_output
 
 
 # Build graphical interface constructed in XML
@@ -909,6 +636,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.setWindowTitle("Metallaxis")
 		# initialise progress bar
 		self.MetallaxisProgress = MetallaxisProgress()
+
 		self.MetallaxisProgress.show()
 
 		# Center GUI on screen
@@ -916,17 +644,12 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		center_point = QDesktopWidget().availableGeometry().center()
 		qt_rectangle.moveCenter(center_point)
 
-		# start measuring memory
-		tracemalloc.start()
-		global normal_mem
-		normal_mem = tracemalloc.take_snapshot()
-
 		self.progress_bar(1, "setting up gui")
 		# buttons on interface
 		self.open_vcf_button.clicked.connect(self.select_and_parse)
 		# menus on interface
 		self.actionOpen_VCF.triggered.connect(self.select_and_parse)
-		self.actionSave_as_HDF5.triggered.connect(self.save_hdf5)
+		self.actionSave_Analysis.triggered.connect(self.save_analysis)
 		self.actionQuit.triggered.connect(self.close)
 
 		# Link "Github Page" button on menu to its URL
@@ -935,13 +658,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			QDesktopServices.openUrl(QtCore.QUrl(url))
 
 		self.actionGithub_Page.triggered.connect(open_github)
-
-		# Link "Documentation" button on menu to its URL
-		def open_docs(url):
-			url = "https://metallaxis.readthedocs.io"
-			QDesktopServices.openUrl(QtCore.QUrl(url))
-
-		self.actionMetallaxis_Documentation.triggered.connect(open_docs)
 
 		def open_about_tab():
 			self.tabWidget.setCurrentIndex(3)
@@ -957,17 +673,11 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			self.MetallaxisSettings.show()
 
 		self.actionSettings.triggered.connect(show_settings_window)
-		self.MetallaxisSettings.annotate_species_comboBox.addItems(['Other', 'Human'])
 
 		# convert gui settings to global variables
-		global complevel, complib, h5chunksize
-		complevel = self.MetallaxisSettings.compression_level_spinBox.text()
-		complib = self.MetallaxisSettings.compression_comboBox.currentText()
-		h5chunksize = self.MetallaxisSettings.vcf_chunk_size.text()
+		global chunk_size
+		chunk_size = self.MetallaxisSettings.vcf_chunk_size.text()
 
-		# on changing Species combobox in Settings, run the changed_species_combobox
-		# function that'll enable or disable the "annotation" checkbox
-		self.MetallaxisSettings.annotate_species_comboBox.currentTextChanged.connect(self.changed_species_combobox)
 
 	def progress_bar(self, percent, message):
 		"""
@@ -977,18 +687,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.MetallaxisProgress.progressbar_message.setText(message)
 		percent = round(percent, 2)
 		self.MetallaxisProgress.progressbar_progress.setValue(percent)
-
-		snapshot2 = tracemalloc.take_snapshot()
-		mem_usage = sum(stat.size for stat in snapshot2.statistics('lineno'))
-		mem_usage_mb = round(mem_usage / 1000000, 2)
-		mem_usage_mb = ("%s" % (mem_usage_mb))
-
-		time_secs = str(round((time.time() - start_time), 2))
-
-		self.MetallaxisProgress.progressbar_ram_usage.setText(mem_usage_mb)
-		self.MetallaxisProgress.progressbar_time.setText(time_secs)
-		print(str(percent) + "% : " + message + " | Time: " + time_secs + " \
-		| RAM (MB): " + mem_usage_mb)
 		MetallaxisApp.processEvents()  # refresh the GUI
 
 	def empty_qt_layout(self, qt_layout_name):
@@ -1002,32 +700,15 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				break
 			layout_widget.widget().deleteLater()
 
-	def save_hdf5(self):
+	def save_analysis(self):
 		"""
-		Open a dialog where the user can chose where to place hdf5 savefile
+		Open a dialog where the user can chose where to place to save analysis as sqlite
 		"""
 		save_dialog = QtWidgets.QFileDialog()
 		save_dialog.setAcceptMode(save_dialog.AcceptSave)
-		save_folder = save_dialog.getSaveFileName(self, 'Save Analayis as HDF5', filter="*.h5")[0]
-		if self.MetallaxisSettings.annotation_checkbox.isChecked():
-			copyfile(annotated_h5_output_name, save_folder)
-		else:
-			copyfile(h5_output_name, save_folder)
+		save_folder = save_dialog.getSaveFileName(self, 'Save Analayis as database', filter="*.sqlite")[0]
+		copyfile(sqlite_output_name, save_folder)
 
-	def changed_species_combobox(self):
-		"""
-		Deactivates checkbox for VCF annotation if a species other than 'Human'
-		is selected, as only human VCFs can be annotated without changing EBI
-		VEP API settings.
-		"""
-		vcf_species = self.MetallaxisSettings.annotate_species_comboBox.currentText()
-		if vcf_species != 'Human':
-			self.MetallaxisSettings.annotation_checkbox.setChecked(False)
-			self.MetallaxisSettings.annotation_checkbox.setEnabled(False)
-			self.MetallaxisSettings.annotate_vcf_label.setEnabled(False)
-		else:
-			self.MetallaxisSettings.annotation_checkbox.setEnabled(True)
-			self.MetallaxisSettings.annotate_vcf_label.setEnabled(True)
 
 	def select_file(self):
 		"""
@@ -1036,7 +717,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		select_dialog = QtWidgets.QFileDialog()
 		select_dialog.setAcceptMode(select_dialog.AcceptSave)
 		selected_vcf = select_dialog.getOpenFileName(self, filter="VCF Files (*.vcf \
-			*.vcf.xz *.vcf.gz *.vcf.bz2) ;;Metallaxis HDF5 Files(*.h5) ;;All Files(*.*)")
+			*.vcf.xz *.vcf.gz *.vcf.bz2) ;;Metallaxis Database Files(*.sqlite) ;;All Files(*.*)")
 		selected_vcf = selected_vcf[0]
 		# if the user cancels the select_file() dialog, then run select again
 		while selected_vcf == "":
@@ -1047,17 +728,17 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 	def select_and_parse(self):
 		"""
 		Runs select_file() to get an input and based off extension, either runs the parse_VCF() or displays the contents
-		of the h5 file directly. Accepts no arguments, and returns nothing. This function exists solely to call other
+		of the database file directly. Accepts no arguments, and returns nothing. This function exists solely to call other
 		functions, as menu items in PyQt can only call one function.
 		"""
 		selected_file = self.select_file()
 		if selected_file is False:
 			return  # If the user cancels the file picker
-		h5_only = False
-		if selected_file.endswith(".h5"):
-			complete_h5_file = load_hdf5(selected_file)
-			h5_only = True
-			self.write_h5_data_to_interface(complete_h5_file, selected_file)
+		load_saved_session = False
+		if selected_file.endswith(".sqlite"):
+			loaded_database = load_sqlite(selected_file)
+			load_saved_session = True
+			self.write_database_to_interface(loaded_database)
 		else:
 			selected_vcf = selected_file
 
@@ -1065,35 +746,31 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.MetallaxisProgress = MetallaxisProgress()
 		self.MetallaxisProgress.show()
 
-		if not h5_only:
-			# get metadata and variant counts from vcf
+		if not load_saved_session:
+
+			# parse vcf, convert to a database, and write database data to interface
 			metadata_dict, var_counts, decompressed_file = parse_vcf(selected_vcf)
-
-			# convert vcf into a hdf5 object
-			h5_file = h5_encode(selected_vcf, decompressed_file, var_counts, metadata_dict)
-
-			# Read H5 for actual table populating
-			complete_h5_file = pd.read_hdf(h5_file, key="df")
-
-			# populate interface with information from hdf5
-			self.write_h5_data_to_interface(complete_h5_file, h5_file)
+			db_connection = database_encode(selected_vcf, decompressed_file, var_counts, metadata_dict)
+			loaded_database = pd.read_sql("SELECT * FROM df", sqlite_output_name)
+			self.write_database_to_interface(loaded_database)
 
 			# get annotation data
-			if self.MetallaxisSettings.annotation_checkbox.isChecked():
-				try:
-					complete_h5_file = annotate_h5(h5_file)
-					complete_h5_file = pd.read_hdf(complete_h5_file, key="df")
-				except:
-					throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
-					self.MetallaxisSettings.annotation_checkbox.setChecked(False)
+			# TODO: uncomment this to put back try and except
+			# if self.MetallaxisSettings.annotation_checkbox.isChecked():
+			# 	try:
+			# 		loaded_database = annotate_variants(db_connection)
+			# 		loaded_database = pd.read_hdf(loaded_database, key="df")
+			# 	except:
+				# 	throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
+				# 	self.MetallaxisSettings.annotation_checkbox.setChecked(False)
 
 		# populate table
-		self.populate_table(complete_h5_file)
+		self.populate_table(loaded_database)
 
 	def filter_table(self):
 		"""
 		Filters table based on chosen filters. Comma separated, dash separated, and single filters exist. This function
-		reads the chosen filter from the interface, requests rows matching those filters from the HDF5 store and
+		reads the chosen filter from the interface, requests rows matching those filters from the database and
 		populates table with that data.
 		Accepts no arguments (retrieves all information from interface), and returns no value.
 		"""
@@ -1108,33 +785,26 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			return
 
 		elif "-" in filter_text:
-			if selected_filter not in numeric_columns:
-				throw_error_message(
-					"Can only filter a dash separated range on numeric columns: " + str(numeric_columns))
-				return
-
 			split_filter_text = filter_text.split("-")
 			# Filter out Null values to avoid corrupting item count
 			split_filter_text = filter(None, split_filter_text)
 			split_filter_text = list(split_filter_text)
+			split_filter_text = ["'" + str(split_filter_text[i]) + "'" for i in range(0,len(split_filter_text))]
 			if len(split_filter_text) == 2:
 				self.filter_text.setText(
 					"Filtering to show " + selected_filter + " from " + str(split_filter_text[0]) + " to " + str(
 						split_filter_text[1]))
 
 				if split_filter_text[0] > split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[1] + " & " + selected_filter + "<=" + \
+					filter_condition = selected_filter + ">=" + split_filter_text[1] + " and " + selected_filter + "<=" + \
 					                   split_filter_text[0]
 				elif split_filter_text[0] < split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[0] + " & " + selected_filter + "<=" + \
+					filter_condition = selected_filter + ">=" + split_filter_text[0] + " and " + selected_filter + "<=" + \
 					                   split_filter_text[1]
 				else:
-					filter_condition = selected_filter + "==" + split_filter_text[0]
+					filter_condition = selected_filter + "=" + split_filter_text[0]
 
-				if self.MetallaxisSettings.annotation_checkbox.isChecked():
-					filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df", where=filter_condition)
-				else:
-					filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
+
 			else:
 				throw_error_message("Please only enter 2 values separated by a dash")
 				return
@@ -1147,12 +817,10 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			nb_filters = len(split_filter_text)
 			if nb_filters >= 1:
 				self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(split_filter_text))
-				filter_condition = selected_filter + " in " + str(split_filter_text)
-
-				if self.MetallaxisSettings.annotation_checkbox.isChecked():
-					filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df", where=filter_condition)
-				else:
-					filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
+				split_filter_text = str(split_filter_text).replace('[','')
+				split_filter_text = str(split_filter_text).replace(']','')
+				split_filter_text = str(split_filter_text).replace(',',' OR ' + selected_filter + "=")
+				filter_condition = selected_filter + "=" + split_filter_text
 
 			else:
 				self.filter_text.setText(" ")
@@ -1161,25 +829,19 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		elif filter_text == "":
 			self.filter_text.setText("No Filter Selected")
-			if self.MetallaxisSettings.annotation_checkbox.isChecked():
-				filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df")
-			else:
-				filtered_h5_table = pd.read_hdf(h5_output_name, key="df")
+
 		else:
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
-			filter_condition = selected_filter + "==\"" + filter_text + "\""
-			if self.MetallaxisSettings.annotation_checkbox.isChecked():
-				filtered_h5_table = pd.read_hdf(annotated_h5_output_name, key="df", where=filter_condition)
-			else:
-				filtered_h5_table = pd.read_hdf(h5_output_name, key="df", where=filter_condition)
+			filter_condition = selected_filter + "=" + filter_text
+			self.populate_table(filtered_table)
 
-		self.populate_table(filtered_h5_table)
+		filtered_table = pd.read_sql_query("SELECT * from df where " + filter_condition, sqlite_connection)
+		self.populate_table(filtered_table)
 
-	def write_h5_data_to_interface(self, complete_h5_file, h5_input_name):
+	def write_database_to_interface(self, loaded_database):
 		"""
 		function that clears the interface if it already has data,
-		then runs the annotate_h5() populate_table() functions. Requires h5
-		read object, and h5 filename.
+		then runs the annotate_variants() populate_table() functions.
 		"""
 		# activate widgets that are disabled before VCF is chosen
 		self.loaded_vcf_lineedit.setEnabled(True)
@@ -1192,10 +854,11 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.filter_lineedit.setEnabled(True)
 		self.filter_box.setEnabled(True)
 
+
 		# get column numbers for ID, POS, etc.
 		self.progress_bar(47, "Extracting column data")
 
-		column_names = list(complete_h5_file.keys())
+		column_names = list(loaded_database.keys())
 		global chrom_col, id_col, pos_col, ref_col, alt_col, qual_col
 		chrom_col = [i for i, s in enumerate(column_names) if 'CHROM' in s][0]
 		id_col = [i for i, s in enumerate(column_names) if 'ID' in s][0]
@@ -1208,62 +871,32 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.empty_qt_layout(self.dynamic_metadata_label_results)
 		self.empty_qt_layout(self.dynamic_metadata_label_tags)
 		# clear statistics & plot layouts
-		self.empty_qt_layout(self.dynamic_stats_value_label)
-		self.empty_qt_layout(self.dynamic_stats_key_label)
+		# self.empty_qt_layout(self.dynamic_stats_value_label)
+		# self.empty_qt_layout(self.dynamic_stats_key_label)
 		self.empty_qt_layout(self.stat_plot_layout)
 
 		self.filter_table_btn.clicked.connect(self.filter_table)
 
-		metadata_dict = {}
-		for line in pd.read_hdf(h5_input_name, key="metadata").itertuples():
-			# turn tuple into a list, but exclude the first item of list
-			# because its the h5 index and not part of our original data
-			line = list(line)[1:]
-			metadata_tag = str(line[0])
-			metadata_result = str(line[1])
-			metadata_dict[metadata_tag] = metadata_result
-			self.dynamic_metadata_label_tags.addWidget(
-				QtWidgets.QLabel(metadata_tag, self))
-			self.dynamic_metadata_label_results.addWidget(
-				QtWidgets.QLabel(metadata_result, self))
+		metadata_sql_result = pd.read_sql_query("SELECT DISTINCT Tag,Result FROM metadata", sqlite_connection)
+		for i in range(0,len(metadata_sql_result)):
+			self.dynamic_metadata_label_tags.addWidget(QtWidgets.QLabel(metadata_sql_result['Tag'][i], self))
+			self.dynamic_metadata_label_results.addWidget(QtWidgets.QLabel(metadata_sql_result['Result'][i], self))
+
+
 
 		var_counts = {}
-		for line in pd.read_hdf(h5_input_name, key="stats").itertuples():
-			line = list(line)[1:]
-			var_counts_key = str(line[0])
-			var_counts_value = str(line[1])
+		stats_sql_result = pd.read_sql_query("SELECT DISTINCT * FROM stats", sqlite_connection)
+		for i in range(0,len(stats_sql_result)):
+			var_counts_key = stats_sql_result['Tag'][i]
+			var_counts_value = stats_sql_result['Result'][i]
 			var_counts[var_counts_key] = var_counts_value
 
-			# increase readability by showing a space instead of _ on interface (e.g. "1 Chrom Indel Count"
-			# insetad of 1_Chrom_Indel_Count
-			var_counts_key = var_counts_key.replace("_", " ")
-
-			# add statistics dictionary data to interface, as labels
-			new_label = QtWidgets.QLabel(str(var_counts_key), self)
-			new_label.setWordWrap(True)
-			self.dynamic_stats_key_label.addWidget(new_label)
-
-			new_label = QtWidgets.QLabel(str(var_counts_value), self)
-			new_label.setWordWrap(True)
-			self.dynamic_stats_value_label.addWidget(new_label)
 
 		if "ALT_Types" in var_counts:
 			ALT_Types = eval(var_counts["ALT_Types"])
 
 		self.progress_bar(49, "Plotting Statistics")
 
-		# plot piechart of proportions of SNP/Indel
-		if 'Total_SNP_Count' in var_counts:
-			total_figure = plt.figure()
-			graph = total_figure.add_subplot(111)
-			graph.pie([var_counts['Total_SNP_Count'], var_counts['Total_Indel_Count']], labels=['SNP', 'Indels'],
-			          autopct='%1.1f%%')
-			# set x and y axes to be equal to get a perfect circle as a piechart
-			graph.axis('equal')
-			plt.title('Proportion of SNP/Indels')
-			total_figure.tight_layout()
-			graph.legend()
-			self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
 		if "ALT_Types" in var_counts:
 			# plot piechart of proportions of types of ALT
@@ -1300,7 +933,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				graph = total_figure.add_subplot(111)
 				# convert items in values_to_plot to int, so that matplotlib orders them correctly
 				values_to_plot = [int(x) for x in values_to_plot]
-				graph.bar(list(list_chromosomes), values_to_plot)
+				graph.bar(list_chromosomes, values_to_plot)
 				plt.title('Distribution of Mutations by Chromosome')
 				plt.xlabel('Chromosome')
 				plt.ylabel('Number of Variants')
@@ -1328,16 +961,19 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		# empty layout from previous selection
 		self.empty_qt_layout(self.chrom_stat_plot_layout)
 
-		# avoid type errors by making chrom an int if its in numeric_columns
-		if 'CHROM' in numeric_columns:
-			chrom = int(chrom)
 
-		# filter complete_h5_file to only results from chosen chromosome
-		chrom_data = complete_h5_file[(complete_h5_file['CHROM'] == chrom)]
+		# filter loaded_database to only results from chosen chromosome
+		my_query = "SELECT * FROM df where CHROM =='" + str(chrom) + "'"
+		chrom_data = pd.read_sql(my_query, db_connection)
+		# chrom_data = loaded_database[(loaded_database['CHROM'] == chrom)]
 		min_pos = chrom_data['POS'].min()
 		max_pos = chrom_data['POS'].max()
 		# calculate the size of the chromosome based on smallest and largest POS values
 		chrom_size = max_pos - min_pos
+
+		if chrom_size is np.NaN:
+			chrom_size = 0
+
 		# divide that size up so we can see variants by each part of the chromosome
 		chrom_size_10 = int(chrom_size / 12)
 		for i in range(min_pos, max_pos, chrom_size_10):
@@ -1355,14 +991,14 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		graph.bar(chrom_data_subset_ranges, chrom_data_subset_variants)
 		plt.title('Distribution of Variants by Position in Chr ' + str(chrom))
 		plt.xticks(rotation=70)
-		plt.xlabel('Position in Chr ' + chrom)
+		plt.xlabel('Position in Chr ' + str(chrom))
 		plt.ylabel('Number of Variants')
 		total_figure.tight_layout()
 		self.chrom_stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
-	def populate_table(self, selected_h5_data):
-		if selected_h5_data is None:
-			throw_error_message("Can't Populate Table: was passed a None object. Verify input H5 or VCF is not currupt")
+	def populate_table(self, selected_data):
+		if selected_data is None:
+			throw_error_message("Can't Populate Table: was passed a None object. Verify that input databbase or VCF is not corrupt")
 			return
 
 		# clear current table
@@ -1370,13 +1006,13 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.viewer_tab_table_widget.setColumnCount(0)
 
 		# create empty table with correct length and width
-		table_length = selected_h5_data.shape[0]
-		table_width = selected_h5_data.shape[1]
+		table_length = selected_data.shape[0]
+		table_width = selected_data.shape[1]
 
 		self.viewer_tab_table_widget.setRowCount(table_length)
 		self.viewer_tab_table_widget.setColumnCount(table_width)
 
-		column_names = list(selected_h5_data.keys())
+		column_names = list(selected_data.keys())
 
 		# clear chrom_filter_box
 		self.filter_box.clear()
@@ -1390,16 +1026,16 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		# populate table
 		vcf_line_nb = 0
 		annotate_percent = 80
-		for line in selected_h5_data.itertuples():
+		for line in selected_data.itertuples():
 			if table_length >= 1000:
 				# only update progress bar every 300 lines to avoid performance hit
 				# from doing it every line
 				if vcf_line_nb % 300 == 0:
 					annotate_progress = annotate_percent + (vcf_line_nb / table_length) * (100 - annotate_percent)
-					self.progress_bar(float(annotate_progress), "Populating Table from H5")
+					self.progress_bar(float(annotate_progress), "Populating Table")
 
 			# turn tuple into a list, but exclude the first item of list
-			# because its the h5 index and not part of our original data
+			# because its the pandas index and not part of our original data
 			line = list(line)[1:]
 
 			vcf_field_nb = 0
@@ -1409,6 +1045,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 					vcf_field = "."
 				elif str(vcf_field) == "nan":
 					vcf_field = "."
+
 				self.viewer_tab_table_widget.setItem(
 					vcf_line_nb, vcf_field_nb, QtWidgets.QTableWidgetItem(str(vcf_field)))
 				vcf_field_nb += 1
@@ -1444,7 +1081,6 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		super(settings_base_object, self).__init__()
 		self.setupUi(self)
 		self.setWindowTitle("Metallaxis Settings")
-		self.compression_comboBox.addItems(['zlib', 'blosc', 'bzip2', 'lzo'])
 		self.vcf_chunk_size.setText("5000")
 		# Center settings pannel on screen
 		qt_rectangle = self.frameGeometry()
@@ -1459,18 +1095,18 @@ if __name__ == '__main__':
 	MetallaxisGui = MetallaxisGuiClass()
 
 	# get annotation by default
-	MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(True)
+	MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(False)
 
 	# get input file
 	MetallaxisGui.progress_bar(2, "Parsing arguments")
-	global h5_only
-	h5_only = False
+	global load_session
+	load_session = False
 
-	# if we load a h5 file from a previous analysis then we skip the usual analysis and verifications
-	if len(sys.argv) == 2 and sys.argv[1].endswith(".h5"):
-		h5_only = True
-		complete_h5_file = load_hdf5(sys.argv[1])
-		MetallaxisGui.write_h5_data_to_interface(complete_h5_file, sys.argv[1])
+	# if we load a saved session from a previous analysis then we skip the usual analysis and verifications
+	if len(sys.argv) == 2 and sys.argv[1].endswith(".sqlite"):
+		load_session = True
+		loaded_dataframe = load_sqlite(sys.argv[1])
+		MetallaxisGui.write_database_to_interface(loaded_dataframe)
 
 	elif len(sys.argv) == 2:  # if we give it vcf or compressed vcf
 		selected_vcf = os.path.abspath(sys.argv[1])
@@ -1481,10 +1117,10 @@ if __name__ == '__main__':
 			throw_error_message("No file selected, qutting Metallaxis")
 			sys.exit(1)
 
-		elif selected_file.endswith(".h5"):
-			complete_h5_file = load_hdf5(selected_file)
-			h5_only = True
-			MetallaxisGui.write_h5_data_to_interface(complete_h5_file, selected_file)
+		elif selected_file.endswith(".sqlite"):
+			load_session = True
+			loaded_dataframe = load_sqlite(selected_file)
+			MetallaxisGui.write_database_to_interface(loaded_dataframe)
 		else:
 			selected_vcf = selected_file
 
@@ -1493,33 +1129,30 @@ if __name__ == '__main__':
 		exit(1)
 
 	# if we loaded a VCF file, do the verification and analysis
-	if not h5_only:
+	if not load_session:
 
 		# get metadata and variant counts from vcf
 		metadata_dict, var_counts, decompressed_file = parse_vcf(selected_vcf)
-
-		# convert vcf into a hdf5 object
-		h5_file = h5_encode(selected_vcf, decompressed_file, var_counts, metadata_dict)
-
-		# Read H5 for actual table populating
-		complete_h5_file = pd.read_hdf(h5_file, key="df")
-
-		# populate interface with information from hdf5
-		MetallaxisGui.write_h5_data_to_interface(complete_h5_file, h5_file)
+		db_connection = database_encode(selected_vcf, decompressed_file, var_counts, metadata_dict)
+		loaded_database = pd.read_sql("SELECT * FROM df", db_connection)
+		MetallaxisGui.write_database_to_interface(loaded_database)
 
 		# get annotation data
-		if MetallaxisGui.MetallaxisSettings.annotation_checkbox.isChecked():
-			if h5_only is not True:
-				try:
-					complete_h5_file = annotate_h5(h5_file)
-					complete_h5_file = pd.read_hdf(complete_h5_file, key="df")
-				except:
-					throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
-					MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(False)
+		# TODO: uncomment this to put back try and except, and increase indent
+		# if MetallaxisGui.MetallaxisSettings.annotation_checkbox.isChecked():
+		# 	if load_session is not True:
+		# 		try:
+		# 		loaded_database = annotate_variants(db_connection)
+		# 		loaded_database = pd.read_hdf(loaded_database, key="df")
+		#   #	loaded_database = pd.read_sql("SELECT * FROM annotated_1", db_connection)
+		#
+		# 		except:
+		# 			throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
+		# 			MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(False)
 
-	# actions that are to be done once we have our h5 file (if we loaded a h5 file then it starts here)
+	# actions that are to be done once we have our sqlite file (if we loaded a sqlite file then it starts here)
 	# populate table
-	MetallaxisGui.populate_table(complete_h5_file)
+	MetallaxisGui.populate_table(loaded_database)
 
 	# show GUI
 	MetallaxisGui.show()
