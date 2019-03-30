@@ -397,7 +397,17 @@ def parse_vcf(vcf_input_filename):
 		for line in decompressed_out:
 			if not line.startswith('#'):
 				line = line.split("\t")
+
+				# Convert CHR 1 to be CHR 01 for correct sorting
+				my_chrom = line[chrom_col]
+				if is_number_bool(my_chrom):
+					if int(my_chrom) < 10:
+						my_chrom = '0' + str(my_chrom)
+				else:
+					my_chrom = str(my_chrom)
+				line[chrom_col] = my_chrom
 				list_chromosomes.add(line[chrom_col])
+
 				alt = str(line[alt_col])
 				# if our alt types are only SNP or transposable elements
 				# then count them
@@ -549,6 +559,7 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 	                          # make default data type an object (ie. string)
 	                          dtype=object)
 
+
 	for chunk in chunked_vcf:
 		# set the new info column names to be empty by default
 		for col in info_cols_to_add:
@@ -575,21 +586,24 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 						chunk[key_to_add].values[line_nb] = "True"
 			line_nb += 1
 
-		# TODO: uncomment the following
-		# Convert Chrom to string and prefix with 0 if numeric and less than 10 to avoid sorting problems
-		# line_nb = 0
-		# for line in chunk["#CHROM"]:
-		# 	if is_number_bool(line) is True:
-		# 		if int(line) < 10:
-		# 			chunk["#CHROM"][line_nb] = "0" + str(line)
-		#
-		# 	line_nb += 1
+		# Get rid of INFO column now that it exists as multiple columns
+		chunk = chunk.drop(columns=['INFO'])
+
 
 		# Rename column so we get 'CHROM' not '#CHROM' from chunk.keys()
 		chunk.rename(columns={'#CHROM': 'CHROM'}, inplace=True)
 
-		# Get rid of INFO column now that it exists as multiple columns
-		chunk = chunk.drop(columns=['INFO'])
+		# To fix sorting problems
+		chunk['CHROM'] = chunk['CHROM'].replace('1', '01')
+		chunk['CHROM'] = chunk['CHROM'].replace('2', '02')
+		chunk['CHROM'] = chunk['CHROM'].replace('3', '03')
+		chunk['CHROM'] = chunk['CHROM'].replace('4', '04')
+		chunk['CHROM'] = chunk['CHROM'].replace('5', '05')
+		chunk['CHROM'] = chunk['CHROM'].replace('6', '06')
+		chunk['CHROM'] = chunk['CHROM'].replace('7', '07')
+		chunk['CHROM'] = chunk['CHROM'].replace('8', '08')
+		chunk['CHROM'] = chunk['CHROM'].replace('9', '09')
+
 
 		# set variable table_column_names to have both normal VCF
 		# columns and the parsed columns from INFO column
@@ -885,7 +899,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 
 		var_counts = {}
-		stats_sql_result = pd.read_sql_query("SELECT DISTINCT * FROM stats", sqlite_connection)
+		stats_sql_result = pd.read_sql_query("SELECT * FROM stats", sqlite_connection)
 		for i in range(0,len(stats_sql_result)):
 			var_counts_key = stats_sql_result['Tag'][i]
 			var_counts_value = stats_sql_result['Result'][i]
@@ -904,7 +918,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			alt_values_to_plot = []
 			for alt in ALT_Types:
 				dict_key = alt + "_Alt_Count"
-				alt_values_to_plot.append(var_counts[dict_key])
+				alt_values_to_plot.append(eval(var_counts[dict_key]))
 
 			total_figure = plt.figure()
 			graph = total_figure.add_subplot(111)
@@ -933,14 +947,17 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				graph = total_figure.add_subplot(111)
 				# convert items in values_to_plot to int, so that matplotlib orders them correctly
 				values_to_plot = [int(x) for x in values_to_plot]
-				graph.bar(list_chromosomes, values_to_plot)
+				graph_df = pd.Series(values_to_plot, index=list_chromosomes)
+				graph_df = graph_df.sort_index()
+				# graph_df graph_df.sort_values(column=""
+				graph.bar(graph_df.index, graph_df.values, tick_label=graph_df.index)
 				plt.title('Distribution of Mutations by Chromosome')
 				plt.xlabel('Chromosome')
 				plt.ylabel('Number of Variants')
 				total_figure.tight_layout()
 				self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
 
-		self.chrom_selection_stat_comboBox.addItems(list_chromosomes)
+		self.chrom_selection_stat_comboBox.addItems(graph_df.index)
 		# setup variants by position graph for first chromosome in list
 		if list_chromosomes[0]:
 			self.changed_chrom_stat_combobox(list_chromosomes[0])
@@ -953,6 +970,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		will generate a new matplotlib graph for the chosen chromosome (which can be given as an
 		argument to override combobox choice).
 		"""
+		print(chrom)
 		# if no optional argument is provided then read chrom selection, from combobox
 		if chrom == None:
 			chrom = self.chrom_selection_stat_comboBox.currentText()
