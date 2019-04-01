@@ -17,7 +17,7 @@
    <property name="layoutDirection">
     <enum>Qt::LeftToRight</enum>
    </property>
-   <layout class="QHBoxLayout" name="horizontalLayout_6">
+      <layout class="QVBoxLayout" name="verticalLayout_5">
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="enabled">
@@ -30,7 +30,7 @@
        <enum>Qt::LeftToRight</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+          <number>2</number>
       </property>
       <property name="usesScrollButtons">
        <bool>false</bool>
@@ -183,8 +183,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>775</width>
-             <height>466</height>
+                <width>431</width>
+                <height>240</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -212,7 +212,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>747</width>
+                      <width>403</width>
                    <height>76</height>
                   </rect>
                  </property>
@@ -371,6 +371,26 @@
             </property>
            </widget>
           </item>
+             <item>
+                 <widget class="QPushButton" name="view_variant_btn">
+                     <property name="enabled">
+                         <bool>false</bool>
+                     </property>
+                     <property name="text">
+                         <string>View Variant</string>
+                     </property>
+                 </widget>
+             </item>
+             <item>
+                 <layout class="QVBoxLayout" name="graphicsView"/>
+             </item>
+             <item>
+                 <widget class="QLabel" name="img_label">
+                     <property name="text">
+                         <string/>
+                     </property>
+                 </widget>
+             </item>
          </layout>
         </item>
        </layout>

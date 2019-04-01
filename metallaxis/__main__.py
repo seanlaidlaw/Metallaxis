@@ -28,6 +28,10 @@ from itertools import islice
 from PyQt5 import QtCore, QtWidgets, uic
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import QApplication, QMessageBox, QDesktopWidget
+from PyQt5.QtSvg import QSvgWidget
+
+# Import SVG Drawing Classes
+import SVGClasses
 
 # for plotting graphs
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -61,10 +65,10 @@ MetPROGui = os.path.join(current_file_dir, "MetallaxisProgress.ui")
 
 # Temporary file names
 global sqlite_output_name, vcf_output_filename
+svg_output_name = os.path.join(working_directory, 'variant_pic.svg')
 sqlite_output_name = os.path.join(working_directory, 'database.sqlite')
 sqlite_connection = sqlite3.connect(sqlite_output_name)
 vcf_output_filename = os.path.join( working_directory, 'vcf_output_filename.vcf')
-
 
 def throw_warning_message(warning_message):
 	"""
@@ -295,10 +299,13 @@ def verify_vcf(decompressed_file_head):
 		throw_error_message("VCF is empty, there are no variants at all in this vcf, please use a different vcf")
 		return False
 	elif variant_num < 5:
-		throw_error_message("VCF contains too few variants to analyse, please use a different vcf")
-		return False
+		# TODO: uncomment the lines below, and remove "return TRUE"
+		return True
+	# throw_error_message("VCF contains too few variants to analyse, please use a different vcf")
+	# return False
 	elif 5 < variant_num < 30:
-		throw_warning_message("VCF contains very few variants, only rudimentary statistics can be performed")
+		# TODO: Uncomment the below as is just to speed up development that I removed GUI
+		# throw_warning_message("VCF contains very few variants, only rudimentary statistics can be performed")
 		return True
 	else:
 		# if more than 35 variants then VCF is fine, return without any alert
@@ -781,6 +788,49 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		# populate table
 		self.populate_table(loaded_database)
 
+	def view_variant(self):
+		current_row = self.viewer_tab_table_widget.currentRow()
+		# if no row selected then stop function
+		if current_row == -1:
+			return
+
+		current_chr = self.viewer_tab_table_widget.item(current_row, 0).text()
+		current_pos = int(self.viewer_tab_table_widget.item(current_row, 1).text())
+		current_alt = self.viewer_tab_table_widget.item(current_row, 4).text()
+
+		# Generate SVG
+		varScene = SVGClasses.Scene('variant_scene')
+		line_length = 450
+		varScene.add(SVGClasses.Line((50, 100), (line_length + 50, 100)))
+
+		my_query = "SELECT * FROM df where CHROM =='" + str(current_chr) + "'"
+		chrom_data = pd.read_sql(my_query, db_connection)
+		# chrom_data = loaded_database[(loaded_database['CHROM'] == chrom)]
+
+		# calculate the size of the chromosome based on smallest and largest POS values
+		min_pos = chrom_data['POS'].min()
+		max_pos = chrom_data['POS'].max()
+		print("min/max pos")
+		print(min_pos, max_pos)
+		print(current_pos)
+
+		print("\nTE")
+		te_pos = float(float(current_pos - min_pos) / float(max_pos - min_pos))
+		te_pos = te_pos * line_length
+		te_pos = te_pos + 50
+		print(str(te_pos))
+
+		if current_alt.startswith('<INS'):
+			varScene.add(SVGClasses.TE(te_pos, "ins"))
+		if current_alt.startswith('<DEL'):
+			varScene.add(SVGClasses.TE(te_pos, "del"))
+		else:
+			varScene.add(SVGClasses.TE(te_pos))
+		varScene.write_svg(svg_output_name)
+
+		self.empty_qt_layout(self.graphicsView)
+		svgWidget = self.graphicsView.addWidget(QSvgWidget(svg_output_name))
+
 	def filter_table(self):
 		"""
 		Filters table based on chosen filters. Comma separated, dash separated, and single filters exist. This function
@@ -843,14 +893,17 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		elif filter_text == "":
 			self.filter_text.setText("No Filter Selected")
+			filtered_table = pd.read_sql_query("SELECT * from df", sqlite_connection)
+			self.populate_table(filtered_table)
+			return
 
 		else:
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
-			filter_condition = selected_filter + "=" + filter_text
-			self.populate_table(filtered_table)
+			filter_condition = selected_filter + "==" + filter_text
 
 		filtered_table = pd.read_sql_query("SELECT * from df where " + filter_condition, sqlite_connection)
 		self.populate_table(filtered_table)
+
 
 	def write_database_to_interface(self, loaded_database):
 		"""
@@ -867,6 +920,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.filter_label.setEnabled(True)
 		self.filter_lineedit.setEnabled(True)
 		self.filter_box.setEnabled(True)
+		self.view_variant_btn.setEnabled(True)
 
 
 		# get column numbers for ID, POS, etc.
@@ -890,6 +944,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.empty_qt_layout(self.stat_plot_layout)
 
 		self.filter_table_btn.clicked.connect(self.filter_table)
+		self.view_variant_btn.clicked.connect(self.view_variant)
 
 		metadata_sql_result = pd.read_sql_query("SELECT DISTINCT Tag,Result FROM metadata", sqlite_connection)
 		for i in range(0,len(metadata_sql_result)):
@@ -920,9 +975,10 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				dict_key = alt + "_Alt_Count"
 				alt_values_to_plot.append(eval(var_counts[dict_key]))
 
+			alt_types_clean_label = [str(alt_type).replace('<', '').replace('>', '') for alt_type in ALT_Types]
 			total_figure = plt.figure()
 			graph = total_figure.add_subplot(111)
-			graph.pie(alt_values_to_plot, labels=ALT_Types, autopct='%1.1f%%')
+			graph.pie(alt_values_to_plot, labels=alt_types_clean_label, autopct='%1.1f%%')
 			# set x and y axes to be equal to get a perfect circle as a piechart
 			graph.axis('equal')
 			plt.title('Proportion of different mutations')
