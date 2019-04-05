@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import yaml  # for reading settings file
 import pathlib  # for making the folder where we store data
 import platform  # for determining OS and therefore where to store data
 import re
@@ -46,14 +47,16 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 # Determine where to store temporary Metallaxis Data
 home_dir = os.path.expanduser('~')
 if platform.system() == "Linux":
-	working_directory = home_dir + "/.metallaxis/"
+	config_directory = home_dir + "/.metallaxis/"
 elif platform.system() == "Darwin":
-	working_directory = home_dir + "/Library/Caches/Metallaxis/"
+	config_directory = home_dir + "/Library/Caches/Metallaxis/"
 elif platform.system() == "Windows":
-	working_directory = os.path.expandvars(r'%APPDATA%\Metallaxis\\')
+	config_directory = os.path.expandvars(r'%APPDATA%\Metallaxis\\')
 
 # make data folder and parent folders if they don't exist
-pathlib.Path(working_directory).mkdir(parents=True, exist_ok=True)
+pathlib.Path(config_directory).mkdir(parents=True, exist_ok=True)
+
+config_file = os.path.join(config_directory, "metallaxis_config.yaml")
 
 # Interface XML files
 current_file_path = __file__
@@ -63,12 +66,7 @@ MetSETui = os.path.join(current_file_dir, "MetallaxisSettings.ui")
 MetPROGui = os.path.join(current_file_dir, "MetallaxisProgress.ui")
 
 
-# Temporary file names
-global sqlite_output_name, vcf_output_filename
-svg_output_name = os.path.join(working_directory, 'variant_pic.svg')
-sqlite_output_name = os.path.join(working_directory, 'database.sqlite')
-sqlite_connection = sqlite3.connect(sqlite_output_name)
-vcf_output_filename = os.path.join( working_directory, 'vcf_output_filename.vcf')
+
 
 def throw_warning_message(warning_message):
 	"""
@@ -97,6 +95,16 @@ def throw_error_message(error_message):
 	error_dialog.setText(error_message)
 	error_dialog.setStandardButtons(QMessageBox.Ok)
 	error_dialog.exec_()
+
+
+def read_config(config_file):
+	with open(config_file, 'r') as configf:
+		try:
+			config = yaml.safe_load(configf)
+			return config
+		except yaml.YAMLError as exc:
+			throw_error_message(exc)
+			return False
 
 
 def decompress_vcf(type_of_compression, vcf_input_filename, headonly_bool=False, vcf_output_filename=None):
@@ -543,7 +551,7 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 	                          # skip rows that started with "#"
 	                          skiprows=range(0, metadata_num - 1),
 	                          # use chunk size that was set in settings
-	                          chunksize=int(chunk_size),
+	                          chunksize=int(config['vcf_chunk_size']),
 	                          low_memory=False,
 	                          # make default data type an object (ie. string)
 	                          dtype=object)
@@ -563,7 +571,7 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 	chunked_vcf = pd.read_csv(selected_vcf,
 	                          delim_whitespace=True,
 	                          skiprows=range(0, metadata_num - 1),
-	                          chunksize=int(chunk_size),
+	                          chunksize=int(config['vcf_chunk_size']),
 	                          low_memory=False,
 	                          # make default data type an object (ie. string)
 	                          dtype=object)
@@ -696,9 +704,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		self.actionSettings.triggered.connect(show_settings_window)
 
-		# convert gui settings to global variables
-		global chunk_size
-		chunk_size = self.MetallaxisSettings.vcf_chunk_size.text()
 
 
 	def progress_bar(self, percent, message):
@@ -1178,7 +1183,11 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		super(settings_base_object, self).__init__()
 		self.setupUi(self)
 		self.setWindowTitle("Metallaxis Settings")
-		self.vcf_chunk_size.setText("5000")
+
+		# Initiate Buttons
+		self.change_wd_btn.clicked.connect(self.set_working_dir)
+		self.save_settings_btn.clicked.connect(self.save_settings)
+
 		# Center settings pannel on screen
 		qt_rectangle = self.frameGeometry()
 		center_point = QDesktopWidget().availableGeometry().center()
@@ -1186,16 +1195,53 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		# set minimum size to size it takes up
 		self.setMinimumSize(self.sizeHint())
 
+	def set_working_dir(self):
+		select_dialog = QtWidgets.QFileDialog()
+		select_dialog.setAcceptMode(select_dialog.AcceptSave)
+		working_directory = select_dialog.getExistingDirectory(directory=config_directory,
+		                                                       caption='Select folder to be working directory')
+		self.working_directory_lineedit.setText(working_directory)
+
+	def save_settings(self):
+		config = {}
+		config['working_dir'] = self.working_directory_lineedit.text()
+		config['vcf_chunk_size'] = self.vcf_chunk_size.text()
+		# config['auto_annotate'] = self.vcf_chunk_size
+		config['max_memory'] = self.max_memory_lineedit.text()
+		config['genome_version'] = self.genome_version_lineEdit.text()
+		# Write settings to YAML file
+		with open(config_file, 'w') as configf:
+			configf.write(yaml.safe_dump(config, default_flow_style=False))
+		self.close()
+
 
 if __name__ == '__main__':
 	MetallaxisApp = QApplication(sys.argv)
 	MetallaxisGui = MetallaxisGuiClass()
 
 	# get annotation by default
-	MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(False)
+	MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(True)
+
+	# If config file doesn't exist setup one
+	if not os.path.isfile(config_file):
+		throw_warning_message("No Metallaxis settings were found, asking user to set them")
+
+		# Open settings window for settings to be changed
+		MetallaxisGui.MetallaxisSettings.working_directory_lineedit.setText(config_directory)
+		MetallaxisGui.MetallaxisSettings.exec_()
+
+	# Read settings into config dictionary
+	config = read_config(config_file)
+
+	# Temporary file names
+	global sqlite_output_name, vcf_output_filename
+	svg_output_name = os.path.join(config['working_dir'], 'variant_pic.svg')
+	sqlite_output_name = os.path.join(config['working_dir'], 'database.sqlite')
+	sqlite_connection = sqlite3.connect(sqlite_output_name)
+	vcf_output_filename = os.path.join(config['working_dir'], 'vcf_output_filename.vcf')
+	annotated_vcf_output_filename = os.path.join(config['working_dir'], 'vcf_annot_filename.vcf')
 
 	# get input file
-	MetallaxisGui.progress_bar(2, "Parsing arguments")
 	global load_session
 	load_session = False
 
