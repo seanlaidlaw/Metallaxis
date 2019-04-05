@@ -74,12 +74,12 @@ class Circle:
 class TE:
 	def __init__(self, origin, type=""):
 		self.origin = [origin, 95]
-		self.point_left = [(origin + 8), 75]
-		self.point_right = [(origin - 8), 75]
+		self.point_left = [(origin + 8), 80]
+		self.point_right = [(origin - 8), 80]
 		if type == "ins":
-			self.fill = "darkblue"
+			self.fill = "#6677CC"
 		elif type == "del":
-			self.fill = "grey"
+			self.fill = "##DD88BB"
 		else:
 			self.fill = "none"
 		return
@@ -106,7 +106,7 @@ class Rectangle:
 
 
 class Text:
-	def __init__(self, origin, text, size=24):
+	def __init__(self, origin, text, size=8):
 		self.origin = origin
 		self.text = text
 		self.size = size
@@ -119,14 +119,19 @@ class Text:
 		        "  </text>\n"]
 
 
-class allele:
-	def __init__(self, start, end, name):
+class Allele:
+	def __init__(self, start, end, name=None):
 		rectangle_width = end - start
-		self.x = Rectangle([start, 95], 10, rectangle_width, [100, 30, 30])
-		self.y = Text([start, 117], name, 11)
+		self.rect = Rectangle([start, 95], 10, rectangle_width, [206, 146, 135])
+		if name != None:
+			self.label = Text([start, 117], name, 11)
+			self.obj = self.rect.strarray() + self.label.strarray()
+		else:
+			self.obj = self.rect.strarray()
+
 
 	def strarray(self):
-		return self.x.strarray() + self.y.strarray()
+		return self.obj
 
 
-def colorstr(rgb): return "#%x%x%x" % (rgb[0] / 16, rgb[1] / 16, rgb[2] / 16)
+def colorstr(rgb): return "#%x%x%x" % (int(rgb[0] / 16), int(rgb[1] / 16), int(rgb[2] / 16))

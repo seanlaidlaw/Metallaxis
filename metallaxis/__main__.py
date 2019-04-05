@@ -171,6 +171,7 @@ def load_sqlite(sqlite_filename):
 		exist. You specified : " + str(sqlite_filename))
 
 
+
 def verify_file(selected_vcf):
 	"""
 	Verify that given VCF is a valid file, that exists, and has a non-null filesize.
@@ -367,6 +368,7 @@ def parse_vcf(vcf_input_filename):
 		decompressed_file = decompress_vcf("", vcf_input_filename, vcf_output_filename=vcf_output_filename)
 
 	MetallaxisGui.loaded_vcf_lineedit.setText(os.path.abspath(vcf_input_filename))
+
 
 	# Calculate counts of different variant types
 	def add_to_dict_iterator(dictionary, key, iterator_value):
@@ -657,7 +659,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.setWindowTitle("Metallaxis")
 		# initialise progress bar
 		self.MetallaxisProgress = MetallaxisProgress()
-
 		self.MetallaxisProgress.show()
 
 		# Center GUI on screen
@@ -788,7 +789,21 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		# populate table
 		self.populate_table(loaded_database)
 
-	def view_variant(self):
+	def hide_graphics_view(self):
+		self.graphicsView.setMaximumHeight(0)
+
+	def show_graphics_view(self):
+		self.graphicsView.setMaximumHeight(16777215)
+
+	def toggle_graphics_view(self):
+		current_height = self.graphicsView.maximumHeight()
+		if current_height == 0:
+			self.show_graphics_view()
+		else:
+			self.hide_graphics_view()
+
+	def generate_variant_graphic(self):
+		self.show_graphics_view()
 		current_row = self.viewer_tab_table_widget.currentRow()
 		# if no row selected then stop function
 		if current_row == -1:
@@ -798,7 +813,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		current_pos = int(self.viewer_tab_table_widget.item(current_row, 1).text())
 		current_alt = self.viewer_tab_table_widget.item(current_row, 4).text()
 
-		# Generate SVG
+		# SVG Setup
 		varScene = SVGClasses.Scene('variant_scene')
 		line_length = 450
 		varScene.add(SVGClasses.Line((50, 100), (line_length + 50, 100)))
@@ -807,18 +822,24 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		chrom_data = pd.read_sql(my_query, db_connection)
 		# chrom_data = loaded_database[(loaded_database['CHROM'] == chrom)]
 
-		# calculate the size of the chromosome based on smallest and largest POS values
-		min_pos = chrom_data['POS'].min()
-		max_pos = chrom_data['POS'].max()
-		print("min/max pos")
-		print(min_pos, max_pos)
-		print(current_pos)
+		# calculate default position of the variant based on smallest and largest POS values for chromosome
+		if self.graphics_min_pos_textin.text() == "":
+			min_pos = chrom_data['POS'].min()
+			self.graphics_min_pos_textin.setText(str(min_pos))
 
-		print("\nTE")
+		if self.graphics_max_pos_textin.text() == "":
+			max_pos = chrom_data['POS'].max()
+			self.graphics_max_pos_textin.setText(str(max_pos))
+
+		min_pos = int(self.graphics_min_pos_textin.text())
+		max_pos = int(self.graphics_max_pos_textin.text())
+
 		te_pos = float(float(current_pos - min_pos) / float(max_pos - min_pos))
 		te_pos = te_pos * line_length
 		te_pos = te_pos + 50
-		print(str(te_pos))
+
+		self.empty_qt_layout(self.graphicsView_layout)
+		self.graphics_chr_label.setText(str(current_chr))
 
 		if current_alt.startswith('<INS'):
 			varScene.add(SVGClasses.TE(te_pos, "ins"))
@@ -826,10 +847,9 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			varScene.add(SVGClasses.TE(te_pos, "del"))
 		else:
 			varScene.add(SVGClasses.TE(te_pos))
-		varScene.write_svg(svg_output_name)
 
-		self.empty_qt_layout(self.graphicsView)
-		svgWidget = self.graphicsView.addWidget(QSvgWidget(svg_output_name))
+		varScene.write_svg(svg_output_name)
+		svgWidget = self.graphicsView_layout.addWidget(QSvgWidget(svg_output_name))
 
 	def filter_table(self):
 		"""
@@ -921,6 +941,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.filter_lineedit.setEnabled(True)
 		self.filter_box.setEnabled(True)
 		self.view_variant_btn.setEnabled(True)
+		self.graphicsView.setMaximumHeight(0)
 
 
 		# get column numbers for ID, POS, etc.
@@ -944,7 +965,9 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.empty_qt_layout(self.stat_plot_layout)
 
 		self.filter_table_btn.clicked.connect(self.filter_table)
-		self.view_variant_btn.clicked.connect(self.view_variant)
+		self.view_variant_btn.clicked.connect(self.generate_variant_graphic)
+		self.graphics_hide_view_btn.clicked.connect(self.hide_graphics_view)
+		self.graphics_reload_btn.clicked.connect(self.generate_variant_graphic)
 
 		metadata_sql_result = pd.read_sql_query("SELECT DISTINCT Tag,Result FROM metadata", sqlite_connection)
 		for i in range(0,len(metadata_sql_result)):
