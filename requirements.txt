@@ -5,3 +5,4 @@ tables==3.4.4
 PyQt5==5.11.2
 requests==2.20.1
 matplotlib==3.0.2
+wget==3.2

@@ -13,6 +13,7 @@ import magic  # to detect filetype from file header
 import numpy as np  # to handle arrays and NaN
 import pandas as pd  # to handle dataframes
 import sqlite3 # handle sqlite db
+import wget  # to download from FTP
 
 # to handle compressed VCFs
 import lzma
@@ -65,6 +66,9 @@ MetGUIui = os.path.join(current_file_dir, "MetallaxisGui.ui")
 MetSETui = os.path.join(current_file_dir, "MetallaxisSettings.ui")
 MetPROGui = os.path.join(current_file_dir, "MetallaxisProgress.ui")
 
+# Annotation executables
+snpsift_jar = os.path.join(current_file_dir, "annotation/SnpSift.jar")
+snpeff_jar = os.path.join(current_file_dir, "annotation/SnpEff.jar")
 
 
 
@@ -154,6 +158,10 @@ def set_col_to_numeric_if_isdigit(column, chunk, numeric_columns_list):
 		if ";" in row:
 			del_col(column)
 		if "|" in row:
+			del_col(column)
+		if "True" in row:
+			del_col(column)
+		if "False" in row:
 			del_col(column)
 		if bool(re.match('^[0-9]+$', row)) is False:
 			if is_number_bool(row) is False:
@@ -402,7 +410,7 @@ def parse_vcf(vcf_input_filename):
 
 	# If VCF only has SNP then collect data on distribution of different nucleotides
 	alt_types_only_snp = True
-	with open(vcf_output_filename) as decompressed_out:
+	with open(decompressed_file) as decompressed_out:
 		for line in decompressed_out:
 			if not line.startswith('#'):
 				line = line.split("\t")
@@ -410,7 +418,7 @@ def parse_vcf(vcf_input_filename):
 				if set(alt).issubset(set('ACTG')) and len(alt) != 1:
 					alt_types_only_snp = False
 
-	with open(vcf_output_filename) as decompressed_out:
+	with open(decompressed_file) as decompressed_out:
 		for line in decompressed_out:
 			if not line.startswith('#'):
 				line = line.split("\t")
@@ -473,7 +481,7 @@ def parse_vcf(vcf_input_filename):
 	regex_metadata = re.compile('(?<=##)(.*?)=(.*$)')
 
 	MetallaxisGui.progress_bar(10, "Extracting VCF metadata")
-	with open(vcf_output_filename) as decompressed_out:
+	with open(decompressed_file) as decompressed_out:
 		vcf_line_nb, metadata_line_nb = 0, 0
 
 		for line in decompressed_out:
@@ -499,7 +507,59 @@ def parse_vcf(vcf_input_filename):
 	return metadata_dict, variant_stats, decompressed_file
 
 
-def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dict):
+def already_annotated(vcf_file):
+	with open(vcf_file, 'r') as vcf_read_obj:
+		for line in vcf_read_obj:
+			if line.startswith("##INFO=<ID=ANN"):
+				return True
+
+
+def annotate_vcf(vcf_file):
+	clinvar_url = "ftp://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
+	clinvar_index_url = "ftp://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz.tbi"
+
+	dbSNP_url = "ftp://ftp.ncbi.nih.gov/snp/organisms/human_9606_b150_GRCh38p7/VCF/00-All.vcf.gz"
+	dbSNP_index_url = "ftp://ftp.ncbi.nih.gov/snp/organisms/human_9606_b150_GRCh38p7/VCF/00-All.vcf.gz.tbi"
+
+	dbSNP_index_path = os.path.join(config['working_dir'], 'dbsnp.vcf.gz.tbi')
+	if not os.path.isfile(dbSNP_index_path):
+		wget.download(dbSNP_index_url, out=dbSNP_index_path)
+
+	dbSNP_path = os.path.join(config['working_dir'], 'dbsnp.vcf.gz')
+	if not os.path.isfile(dbSNP_path):
+		MetallaxisGui.progress_bar(35, "Downloading Annotation databases (this will take a while)")
+		wget.download(dbSNP_url, out=dbSNP_path)
+
+	clinvar_index_path = os.path.join(config['working_dir'], 'clinvar.vcf.gz.tbi')
+	if not os.path.isfile(clinvar_index_path):
+		wget.download(clinvar_index_url, out=clinvar_index_path)
+
+	clinvar_path = os.path.join(config['working_dir'], 'clinvar.vcf.gz')
+	if not os.path.isfile(clinvar_path):
+		MetallaxisGui.progress_bar(37, "Downloading Annotation databases (this will take a while)")
+		wget.download(clinvar_url, out=clinvar_path)
+
+	MetallaxisGui.progress_bar(5, "Running annotation on VCF")
+
+	annotate_cmd = "java -Xmx" + config['max_memory'] + "G -jar " + snpeff_jar + " " + config[
+		'genome_version'] + " " + vcf_file + " > " + annotated_vcf_output_filename
+	os.system(annotate_cmd)
+
+	annotate_cmd = "java -Xmx" + config[
+		'max_memory'] + "G -jar " + snpsift_jar + " annotate " + dbSNP_path + " " + annotated_vcf_output_filename + " > " + annotated_vcf_output_filename + "1"
+	os.system(annotate_cmd)
+
+	annotate_cmd = "java -Xmx" + config[
+		'max_memory'] + "G -jar " + snpsift_jar + " annotate " + clinvar_path + " " + annotated_vcf_output_filename + "1 > " + annotated_vcf_output_filename + "2"
+	os.system(annotate_cmd)
+
+	os.remove(annotated_vcf_output_filename)
+	os.remove(annotated_vcf_output_filename + "1")
+	os.rename(annotated_vcf_output_filename + "2", annotated_vcf_output_filename)
+	return annotated_vcf_output_filename
+
+
+def database_encode(decompressed_file, variant_stats, metadata_dict):
 	"""
 	accepts as input a raw vcf file, and dictionaries for variant counts (variant_stats) and metadata
 	(metadata_dict). Then encodes them as tables into a database.
@@ -535,10 +595,8 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 		variant_stats_line.to_sql('stats', sqlite_output, if_exists='append', index=False)
 		stat_table_index += 1
 
-	chunked_vcf_len = sum(1 for row in open(decompressed_file, 'r'))
+	# chunked_vcf_len = sum(1 for row in open(decompressed_file, 'r'))
 
-	annotate_nb = 0
-	annotate_percent = 35
 
 	# PARSE INFO COLUMNS
 	# the info column of a vcf is long and hard to read if
@@ -546,8 +604,8 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 	# that we can parse as new columns, making them filterable.
 	global info_cols_to_add
 	info_cols_to_add = set()
-	chunked_vcf = pd.read_csv(selected_vcf,
-	                          delim_whitespace=True,
+	chunked_vcf = pd.read_csv(decompressed_file,
+	                          sep="\t",
 	                          # skip rows that started with "#"
 	                          skiprows=range(0, metadata_num - 1),
 	                          # use chunk size that was set in settings
@@ -567,9 +625,25 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 					col_to_add = col.split("=")[0]
 					info_cols_to_add.add(col_to_add)
 
-	global table_column_names
-	chunked_vcf = pd.read_csv(selected_vcf,
-	                          delim_whitespace=True,
+	anno_info_cols_to_add = []
+	with open(decompressed_file, 'r') as vcf_read_obj:
+		for line in vcf_read_obj:
+			if not line.startswith('#'):
+				break
+
+			if line.startswith('##INFO=<ID=ANN'):
+				line = line.split("Functional annotations: '")[1]
+				line = line.split("|")
+				for col in line:
+					col = col.replace('"', "")
+					col = col.replace('>', "")
+					col = col.replace("'", '')
+					col = re.sub('^\s+', '', col)
+					col = re.sub('\s+$', '', col)
+					anno_info_cols_to_add.append(col)
+
+	chunked_vcf = pd.read_csv(decompressed_file,
+	                          sep="\t",
 	                          skiprows=range(0, metadata_num - 1),
 	                          chunksize=int(config['vcf_chunk_size']),
 	                          low_memory=False,
@@ -606,6 +680,19 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 		# Get rid of INFO column now that it exists as multiple columns
 		chunk = chunk.drop(columns=['INFO'])
 
+		for col in anno_info_cols_to_add:
+			chunk[col] = "."
+
+		line_nb = 0
+		for line in chunk["ANN"]:
+			line_split = line.split("|")
+			for col_num in range(0, len(anno_info_cols_to_add)):
+				current_col = anno_info_cols_to_add[col_num]
+				if len(line_split) > col_num:
+					chunk[current_col].values[line_nb] = line_split[col_num]
+			line_nb += 1
+
+		chunk = chunk.drop(columns=['ANN'])
 
 		# Rename column so we get 'CHROM' not '#CHROM' from chunk.keys()
 		chunk.rename(columns={'#CHROM': 'CHROM'}, inplace=True)
@@ -622,10 +709,6 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 		chunk['CHROM'] = chunk['CHROM'].replace('9', '09')
 
 
-		# set variable table_column_names to have both normal VCF
-		# columns and the parsed columns from INFO column
-		table_column_names = list(chunk.keys()) + list(info_cols_to_add)
-
 		# SET COLS WITH NUMBERS TO BE NUMERIC TYPE
 		# set columns that only contain numbers to be numeric dtype
 		# otherwise they are just strings, and can't be used with a
@@ -634,7 +717,7 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 		# make a list from all column names, we will later remove the
 		# non-numeric columns from the list
 		global numeric_columns
-		numeric_columns = table_column_names
+		numeric_columns = list(chunk.keys())
 		#
 		chunk = chunk.replace(".", np.NaN)
 
@@ -647,7 +730,6 @@ def database_encode(selected_vcf, decompressed_file, variant_stats, metadata_dic
 			chunk[column] = pd.to_numeric(chunk[column])
 
 		chunk.to_sql('df', sqlite_output, if_exists='append', index=False)
-		annotate_nb += 1
 
 	return sqlite_output
 
@@ -777,19 +859,10 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 			# parse vcf, convert to a database, and write database data to interface
 			metadata_dict, var_counts, decompressed_file = parse_vcf(selected_vcf)
-			db_connection = database_encode(selected_vcf, decompressed_file, var_counts, metadata_dict)
+			database_encode(decompressed_file, var_counts, metadata_dict)
 			loaded_database = pd.read_sql("SELECT * FROM df", sqlite_output_name)
 			self.write_database_to_interface(loaded_database)
 
-			# get annotation data
-			# TODO: uncomment this to put back try and except
-			# if self.MetallaxisSettings.annotation_checkbox.isChecked():
-			# 	try:
-			# 		loaded_database = annotate_variants(db_connection)
-			# 		loaded_database = pd.read_hdf(loaded_database, key="df")
-			# 	except:
-				# 	throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
-				# 	self.MetallaxisSettings.annotation_checkbox.setChecked(False)
 
 		# populate table
 		self.populate_table(loaded_database)
@@ -933,7 +1006,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 	def write_database_to_interface(self, loaded_database):
 		"""
 		function that clears the interface if it already has data,
-		then runs the annotate_variants() populate_table() functions.
+		then runs the populate_table() functions.
 		"""
 		# activate widgets that are disabled before VCF is chosen
 		self.loaded_vcf_lineedit.setEnabled(True)
@@ -1054,7 +1127,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		will generate a new matplotlib graph for the chosen chromosome (which can be given as an
 		argument to override combobox choice).
 		"""
-		print(chrom)
 		# if no optional argument is provided then read chrom selection, from combobox
 		if chrom == None:
 			chrom = self.chrom_selection_stat_comboBox.currentText()
@@ -1146,6 +1218,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				if vcf_field is np.NaN:
 					vcf_field = "."
 				elif str(vcf_field) == "nan":
+					vcf_field = "."
+				elif vcf_field is None:
 					vcf_field = "."
 
 				self.viewer_tab_table_widget.setItem(
@@ -1275,25 +1349,18 @@ if __name__ == '__main__':
 	if not load_session:
 
 		# get metadata and variant counts from vcf
+		if MetallaxisGui.MetallaxisSettings.annotation_checkbox.isChecked():
+			if not already_annotated(selected_vcf):
+				selected_vcf = annotate_vcf(selected_vcf)
+
 		metadata_dict, var_counts, decompressed_file = parse_vcf(selected_vcf)
-		db_connection = database_encode(selected_vcf, decompressed_file, var_counts, metadata_dict)
+		db_connection = database_encode(decompressed_file, var_counts, metadata_dict)
 		loaded_database = pd.read_sql("SELECT * FROM df", db_connection)
 		MetallaxisGui.write_database_to_interface(loaded_database)
 
-		# get annotation data
-		# TODO: uncomment this to put back try and except, and increase indent
-		# if MetallaxisGui.MetallaxisSettings.annotation_checkbox.isChecked():
-		# 	if load_session is not True:
-		# 		try:
-		# 		loaded_database = annotate_variants(db_connection)
-		# 		loaded_database = pd.read_hdf(loaded_database, key="df")
-		#   #	loaded_database = pd.read_sql("SELECT * FROM annotated_1", db_connection)
-		#
-		# 		except:
-		# 			throw_warning_message("Annotation did not succeed, proceeding with non-annotated h5")
-		# 			MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(False)
+	# actions that are to be done once we have our sqlite file
+	# if we loaded a sqlite file then it starts here)
 
-	# actions that are to be done once we have our sqlite file (if we loaded a sqlite file then it starts here)
 	# populate table
 	MetallaxisGui.populate_table(loaded_database)
 
