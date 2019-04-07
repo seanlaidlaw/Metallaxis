@@ -1121,7 +1121,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		else:
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
-			filter_condition = selected_filter + "==" + filter_text
+			filter_condition = "'" + selected_filter + "'=='" + filter_text + "'"
 
 		filtered_table = pd.read_sql_query("SELECT * from df where " + filter_condition, sqlite_connection)
 		self.populate_table(filtered_table)
@@ -1337,6 +1337,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				if vcf_field is np.NaN:
 					vcf_field = "."
 				elif str(vcf_field) == "nan":
+					vcf_field = "."
+				elif vcf_field is "":
 					vcf_field = "."
 				elif vcf_field is None:
 					vcf_field = "."
