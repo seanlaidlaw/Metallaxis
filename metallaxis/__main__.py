@@ -35,7 +35,7 @@ from PyQt5.QtWidgets import QApplication, QMessageBox, QDesktopWidget
 from PyQt5.QtSvg import QSvgWidget
 
 # Import SVG Drawing Classes
-import SVGClasses
+from metallaxis import SVGClasses
 
 # for plotting graphs
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -565,9 +565,13 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 	(metadata_dict). Then encodes them as tables into a database.
 	Returns filename of created sqlite database.
 	"""
-	os.remove(sqlite_output_name)
 	sqlite_output = sqlite3.connect(sqlite_output_name)
-	# conn = sqlite_connection.cursor()
+	cursor = sqlite_connection.cursor()
+	cursor.execute("DROP TABLE IF EXISTS df;")
+	cursor.execute("DROP TABLE IF EXISTS stats;")
+	cursor.execute("DROP TABLE IF EXISTS metadata;")
+	cursor.execute("DROP TABLE IF EXISTS chrom_genes;")
+	sqlite_output.commit()
 
 	# write each entry from metadata_dict to a new "metadata" table in database
 	for metadata_line_nb in metadata_dict:
@@ -754,14 +758,15 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.setWindowTitle("Metallaxis")
 		# initialise progress bar
 		self.MetallaxisProgress = MetallaxisProgress()
-		self.MetallaxisProgress.show()
+
+		# Setup inital GUI
+		self.graphicsView.setMaximumHeight(0)
 
 		# Center GUI on screen
 		qt_rectangle = self.frameGeometry()
 		center_point = QDesktopWidget().availableGeometry().center()
 		qt_rectangle.moveCenter(center_point)
 
-		self.progress_bar(1, "setting up gui")
 		# buttons on interface
 		self.open_vcf_button.clicked.connect(self.select_and_parse)
 		# menus on interface
@@ -851,6 +856,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		of the database file directly. Accepts no arguments, and returns nothing. This function exists solely to call other
 		functions, as menu items in PyQt can only call one function.
 		"""
+		self.MetallaxisProgress.show()
 
 		if not cli_arg:
 			selected_file = self.select_file()
@@ -1154,7 +1160,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.filter_lineedit.setEnabled(True)
 		self.filter_box.setEnabled(True)
 		self.view_variant_btn.setEnabled(True)
-		self.graphicsView.setMaximumHeight(0)
+		self.chrom_selection_stat_comboBox.setEnabled(True)
+		self.chrom_selection_label.setEnabled(True)
 
 		# get column numbers for ID, POS, etc.
 		self.progress_bar(47, "Extracting column data")
@@ -1194,12 +1201,10 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			var_counts_value = stats_sql_result['Result'][i]
 			var_counts[var_counts_key] = var_counts_value
 
-		if "ALT_Types" in var_counts:
-			ALT_Types = eval(var_counts["ALT_Types"])
-
 		self.progress_bar(49, "Plotting Statistics")
 
 		if "ALT_Types" in var_counts:
+			ALT_Types = eval(var_counts["ALT_Types"])
 			# plot piechart of proportions of types of ALT
 			# get the value for each ALT_Types key in order, per type of Alt so it can be graphed
 			alt_values_to_plot = []
@@ -1244,8 +1249,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				plt.ylabel('Number of Variants')
 				total_figure.tight_layout()
 				self.stat_plot_layout.addWidget(FigureCanvas(total_figure))
+				self.chrom_selection_stat_comboBox.addItems(graph_df.index)
 
-		self.chrom_selection_stat_comboBox.addItems(graph_df.index)
 		# setup variants by position graph for first chromosome in list
 		if list_chromosomes[0]:
 			self.changed_chrom_stat_combobox(list_chromosomes[0])

@@ -8,22 +8,22 @@ with open("README.md", "r") as fh:
 
 setup(
 	name="Metallaxis",
-	version="0.8",
+	version="0.9",
 	license='GPLv3',
 	author="Sean Laidlaw",
 	author_email="seanlaidlaw95@gmail.com",
 	url='https://github.com/SL-LAIDLAW/Metallaxis',
-	description="A graphical python-based VCF viewer with optional VEP annotation",
+	description="A graphical python-based VCF viewer with optional annotation",
 	packages=['metallaxis'],
-	package_data={'':['*.ui']},
+	package_data={'': ['*.ui', 'annotation/*']},
 	include_package_data=True,
 	install_requires=[
 		'python-magic',
 		'pandas',
 		'numpy',
-		'tables',
 		'PyQt5',
 		'requests',
+		'wget',
 		'matplotlib'
 	],
 	classifiers=[
