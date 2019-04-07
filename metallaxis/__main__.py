@@ -845,19 +845,24 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			return False
 		return selected_vcf
 
-	def select_and_parse(self):
+	def select_and_parse(self, cli_arg=False):
 		"""
 		Runs select_file() to get an input and based off extension, either runs the parse_VCF() or displays the contents
 		of the database file directly. Accepts no arguments, and returns nothing. This function exists solely to call other
 		functions, as menu items in PyQt can only call one function.
 		"""
-		selected_file = self.select_file()
-		if selected_file is False:
-			return  # If the user cancels the file picker
-		load_saved_session = False
+
+		if not cli_arg:
+			selected_file = self.select_file()
+			if selected_file is False:
+				return  # If the user cancels the file picker
+		else:
+			selected_file = cli_arg
+
+		load_session = False
 		if selected_file.endswith(".sqlite"):
+			load_session = True
 			loaded_database = load_sqlite(selected_file)
-			load_saved_session = True
 			self.write_database_to_interface(loaded_database)
 		else:
 			selected_vcf = selected_file
@@ -866,11 +871,18 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.MetallaxisProgress = MetallaxisProgress()
 		self.MetallaxisProgress.show()
 
-		if not load_saved_session:
+		if not load_session:
+
+			# get metadata and variant counts from vcf
+			if self.MetallaxisSettings.annotation_checkbox.isChecked():
+				if not already_annotated(selected_vcf):
+					selected_vcf = annotate_vcf(selected_vcf)
+
 			# parse vcf, convert to a database, and write database data to interface
 			metadata_dict, var_counts, decompressed_file = parse_vcf(selected_vcf)
-			database_encode(decompressed_file, var_counts, metadata_dict)
-			loaded_database = pd.read_sql("SELECT * FROM df", sqlite_output_name)
+			global db_connection
+			db_connection = database_encode(decompressed_file, var_counts, metadata_dict)
+			loaded_database = pd.read_sql("SELECT * FROM df", db_connection)
 			self.write_database_to_interface(loaded_database)
 
 		# populate table
@@ -1438,54 +1450,8 @@ if __name__ == '__main__':
 	vcf_output_filename = os.path.join(config['working_dir'], 'vcf_output_filename.vcf')
 	annotated_vcf_output_filename = os.path.join(config['working_dir'], 'vcf_annot_filename.vcf')
 
-	# get input file
-	global load_session
-	load_session = False
-
-	# if we load a saved session from a previous analysis then we skip the usual analysis and verifications
-	if len(sys.argv) == 2 and sys.argv[1].endswith(".sqlite"):
-		load_session = True
-		loaded_dataframe = load_sqlite(sys.argv[1])
-		MetallaxisGui.write_database_to_interface(loaded_dataframe)
-
-	elif len(sys.argv) == 2:  # if we give it vcf or compressed vcf
-		selected_vcf = os.path.abspath(sys.argv[1])
-
-	elif len(sys.argv) == 1:  # if we don't give any args then open file picker
-		selected_file = MetallaxisGui.select_file()
-		if selected_file is False:
-			throw_error_message("No file selected, qutting Metallaxis")
-			sys.exit(1)
-
-		elif selected_file.endswith(".sqlite"):
-			load_session = True
-			loaded_dataframe = load_sqlite(selected_file)
-			MetallaxisGui.write_database_to_interface(loaded_dataframe)
-		else:
-			selected_vcf = selected_file
-
-	else:  # if we give more than 1 arg
-		print("Error: Metallaxis can only take one argument, a vcf file")
-		exit(1)
-
-	# if we loaded a VCF file, do the verification and analysis
-	if not load_session:
-
-		# get metadata and variant counts from vcf
-		if MetallaxisGui.MetallaxisSettings.annotation_checkbox.isChecked():
-			if not already_annotated(selected_vcf):
-				selected_vcf = annotate_vcf(selected_vcf)
-
-		metadata_dict, var_counts, decompressed_file = parse_vcf(selected_vcf)
-		db_connection = database_encode(decompressed_file, var_counts, metadata_dict)
-		loaded_database = pd.read_sql("SELECT * FROM df", db_connection)
-		MetallaxisGui.write_database_to_interface(loaded_database)
-
-	# actions that are to be done once we have our sqlite file
-	# if we loaded a sqlite file then it starts here)
-
-	# populate table
-	MetallaxisGui.populate_table(loaded_database)
+	if len(sys.argv) == 2:
+		MetallaxisGui.select_and_parse(sys.argv[1])
 
 	# show GUI
 	MetallaxisGui.show()
