@@ -7,13 +7,11 @@ is to construct a scene, add objects to it, and then write it to a file
 to display it.
 """
 
-import os
-
 display_prog = 'display'  # Command to execute to display images.
 
 
 class Scene:
-	def __init__(self, name="svg", height=150, width=550):
+	def __init__(self, name="svg", height=150, width=750):
 		self.name = name
 		self.items = []
 		self.height = height
@@ -91,22 +89,26 @@ class TE:
 
 
 class Rectangle:
-	def __init__(self, origin, height, width, color):
+	def __init__(self, origin, height, width, color, opacity=None):
 		self.origin = origin
 		self.height = height
 		self.width = width
 		self.color = color
+		if opacity != None:
+			self.opacity = opacity
+		else:
+			self.opacity = 1
 		return
 
 	def strarray(self):
 		return ["  <rect x=\"%d\" y=\"%d\" height=\"%d\"\n" % \
 		        (self.origin[0], self.origin[1], self.height),
-		        "    width=\"%d\" style=\"fill:%s;\" />\n" % \
-		        (self.width, colorstr(self.color))]
+		        "    width=\"%d\" style=\"fill:%s;,fill-opacity:%s\" />\n" % \
+		        (self.width, colorstr(self.color), self.opacity)]
 
 
 class Text:
-	def __init__(self, origin, text, size=8):
+	def __init__(self, origin, text, size=6):
 		self.origin = origin
 		self.text = text
 		self.size = size
@@ -120,17 +122,27 @@ class Text:
 
 
 class Allele:
-	def __init__(self, start, end, name=None):
+	def __init__(self, start, end, name=None, color_num=1):
 		rectangle_width = end - start
-		self.rect = Rectangle([start, 95], 10, rectangle_width, [206, 146, 135])
-		if name != None:
-			self.label = Text([start, 117], name, 11)
+		color_list = [[171, 138, 222], [221, 136, 187], [206, 146, 135], [222, 213, 138], [206, 146, 135]]
+		self.rect = Rectangle([start, 95], 10, rectangle_width, color_list[color_num], 0.4)
+		self.name = name
+		self.start = start
+		self.end = end
+
+	def removeName(self):
+		self.name = None
+		return self
+
+	def getWidth(self):
+		return (self.end - self.start)
+
+	def strarray(self):
+		if self.name != None:
+			self.label = Text([self.start, 117], self.name, 8)
 			self.obj = self.rect.strarray() + self.label.strarray()
 		else:
 			self.obj = self.rect.strarray()
-
-
-	def strarray(self):
 		return self.obj
 
 

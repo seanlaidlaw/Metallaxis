@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import requests
 import os
 import yaml  # for reading settings file
 import pathlib  # for making the folder where we store data
@@ -12,7 +13,7 @@ from shutil import copyfile  # for save analysis
 import magic  # to detect filetype from file header
 import numpy as np  # to handle arrays and NaN
 import pandas as pd  # to handle dataframes
-import sqlite3 # handle sqlite db
+import sqlite3  # handle sqlite db
 import wget  # to download from FTP
 
 # to handle compressed VCFs
@@ -21,6 +22,7 @@ import bz2
 import gzip
 
 import matplotlib  # to plot graphs
+
 matplotlib.use("Qt5Agg")  # to make matplotlib behave nicely with PyQT5
 
 # to read selected lines of files (reduce RAM usage for big files)
@@ -38,6 +40,7 @@ import SVGClasses
 # for plotting graphs
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
+
 plt.style.use('seaborn')
 
 # allow <Ctrl-c> to terminate the GUI
@@ -69,7 +72,6 @@ MetPROGui = os.path.join(current_file_dir, "MetallaxisProgress.ui")
 # Annotation executables
 snpsift_jar = os.path.join(current_file_dir, "annotation/SnpSift.jar")
 snpeff_jar = os.path.join(current_file_dir, "annotation/SnpEff.jar")
-
 
 
 def throw_warning_message(warning_message):
@@ -140,12 +142,12 @@ def is_number_bool(sample):
 		return False
 	return True
 
+
 def set_col_to_numeric_if_isdigit(column, chunk, numeric_columns_list):
 	"""
 	Determines which columns of a given chunk are ints or floats, and removes
 	them from a list of columns if they are neither.
 	"""
-
 
 	def del_col(column):
 		if column in numeric_columns_list:
@@ -185,7 +187,6 @@ def load_sqlite(sqlite_filename):
 	else:
 		throw_error_message("Selected file does not \
 		exist. You specified : " + str(sqlite_filename))
-
 
 
 def verify_file(selected_vcf):
@@ -385,7 +386,6 @@ def parse_vcf(vcf_input_filename):
 
 	MetallaxisGui.loaded_vcf_lineedit.setText(os.path.abspath(vcf_input_filename))
 
-
 	# Calculate counts of different variant types
 	def add_to_dict_iterator(dictionary, key, iterator_value):
 		"""
@@ -443,12 +443,12 @@ def parse_vcf(vcf_input_filename):
 
 				if len(line[ref_col]) == len(line[alt_col]):
 					variant_stats["Total_SNP_Count"] += 1
-					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_SNP_Count", 1)
-					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
+					add_to_dict_iterator(variant_stats, line[chrom_col] + "_Chrom_SNP_Count", 1)
+					add_to_dict_iterator(variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
 				else:
 					variant_stats["Total_Indel_Count"] += 1
-					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_Indel_Count", 1)
-					add_to_dict_iterator( variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
+					add_to_dict_iterator(variant_stats, line[chrom_col] + "_Chrom_Indel_Count", 1)
+					add_to_dict_iterator(variant_stats, line[chrom_col] + "_Chrom_Variant_Count", 1)
 					length_of_all_indels += len(line[alt_col])
 
 	total_chrom_snp_count, total_chrom_indel_count = 0, 0
@@ -539,7 +539,7 @@ def annotate_vcf(vcf_file):
 		MetallaxisGui.progress_bar(37, "Downloading Annotation databases (this will take a while)")
 		wget.download(clinvar_url, out=clinvar_path)
 
-	MetallaxisGui.progress_bar(5, "Running annotation on VCF")
+	MetallaxisGui.progress_bar(5, "Running annotation on VCF (this will take some time)")
 
 	annotate_cmd = "java -Xmx" + config['max_memory'] + "G -jar " + snpeff_jar + " " + config[
 		'genome_version'] + " " + vcf_file + " > " + annotated_vcf_output_filename
@@ -567,6 +567,7 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 	"""
 	os.remove(sqlite_output_name)
 	sqlite_output = sqlite3.connect(sqlite_output_name)
+	# conn = sqlite_connection.cursor()
 
 	# write each entry from metadata_dict to a new "metadata" table in database
 	for metadata_line_nb in metadata_dict:
@@ -596,7 +597,6 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 		stat_table_index += 1
 
 	# chunked_vcf_len = sum(1 for row in open(decompressed_file, 'r'))
-
 
 	# PARSE INFO COLUMNS
 	# the info column of a vcf is long and hard to read if
@@ -650,7 +650,6 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 	                          # make default data type an object (ie. string)
 	                          dtype=object)
 
-
 	for chunk in chunked_vcf:
 		# set the new info column names to be empty by default
 		for col in info_cols_to_add:
@@ -680,19 +679,21 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 		# Get rid of INFO column now that it exists as multiple columns
 		chunk = chunk.drop(columns=['INFO'])
 
-		for col in anno_info_cols_to_add:
-			chunk[col] = "."
+		if len(anno_info_cols_to_add) > 0:
+			for col in anno_info_cols_to_add:
+				chunk[col] = "."
 
 		line_nb = 0
-		for line in chunk["ANN"]:
-			line_split = line.split("|")
-			for col_num in range(0, len(anno_info_cols_to_add)):
-				current_col = anno_info_cols_to_add[col_num]
-				if len(line_split) > col_num:
-					chunk[current_col].values[line_nb] = line_split[col_num]
-			line_nb += 1
+		if "ANN" in chunk:
+			for line in chunk["ANN"]:
+				line_split = line.split("|")
+				for col_num in range(0, len(anno_info_cols_to_add)):
+					current_col = anno_info_cols_to_add[col_num]
+					if len(line_split) > col_num:
+						chunk[current_col].values[line_nb] = line_split[col_num]
+				line_nb += 1
 
-		chunk = chunk.drop(columns=['ANN'])
+			chunk = chunk.drop(columns=['ANN'])
 
 		# Rename column so we get 'CHROM' not '#CHROM' from chunk.keys()
 		chunk.rename(columns={'#CHROM': 'CHROM'}, inplace=True)
@@ -707,7 +708,6 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 		chunk['CHROM'] = chunk['CHROM'].replace('7', '07')
 		chunk['CHROM'] = chunk['CHROM'].replace('8', '08')
 		chunk['CHROM'] = chunk['CHROM'].replace('9', '09')
-
 
 		# SET COLS WITH NUMBERS TO BE NUMERIC TYPE
 		# set columns that only contain numbers to be numeric dtype
@@ -731,6 +731,11 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 
 		chunk.to_sql('df', sqlite_output, if_exists='append', index=False)
 
+	# for col in anno_info_cols_to_add:
+	# 	sql_request = "DELETE FROM df WHERE %s IS NULL OR trim(%s) = '';" % (col, col)
+	# 	conn.execute(sql_request)
+	# 	conn.commit()
+	# 	conn.close()
 	return sqlite_output
 
 
@@ -786,8 +791,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		self.actionSettings.triggered.connect(show_settings_window)
 
-
-
 	def progress_bar(self, percent, message):
 		"""
 		Function that updates the on screen progress bar. Accepts two arguments, one
@@ -809,6 +812,15 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				break
 			layout_widget.widget().deleteLater()
 
+	def save_svg(self):
+		"""
+		Open a dialog where the user can chose where to place to save svg of variant view
+		"""
+		save_dialog = QtWidgets.QFileDialog()
+		save_dialog.setAcceptMode(save_dialog.AcceptSave)
+		save_folder = save_dialog.getSaveFileName(self, 'Save variant view as vector image', filter="*.svg")[0]
+		copyfile(svg_output_name, save_folder)
+
 	def save_analysis(self):
 		"""
 		Open a dialog where the user can chose where to place to save analysis as sqlite
@@ -817,7 +829,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		save_dialog.setAcceptMode(save_dialog.AcceptSave)
 		save_folder = save_dialog.getSaveFileName(self, 'Save Analayis as database', filter="*.sqlite")[0]
 		copyfile(sqlite_output_name, save_folder)
-
 
 	def select_file(self):
 		"""
@@ -856,13 +867,11 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.MetallaxisProgress.show()
 
 		if not load_saved_session:
-
 			# parse vcf, convert to a database, and write database data to interface
 			metadata_dict, var_counts, decompressed_file = parse_vcf(selected_vcf)
 			database_encode(decompressed_file, var_counts, metadata_dict)
 			loaded_database = pd.read_sql("SELECT * FROM df", sqlite_output_name)
 			self.write_database_to_interface(loaded_database)
-
 
 		# populate table
 		self.populate_table(loaded_database)
@@ -880,7 +889,10 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		else:
 			self.hide_graphics_view()
 
-	def generate_variant_graphic(self):
+	def reload_generate_variant_graphic(self):
+		self.generate_variant_graphic(True)
+
+	def generate_variant_graphic(self, read_pos_input=False):
 		self.show_graphics_view()
 		current_row = self.viewer_tab_table_widget.currentRow()
 		# if no row selected then stop function
@@ -893,28 +905,128 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		# SVG Setup
 		varScene = SVGClasses.Scene('variant_scene')
-		line_length = 450
+		line_length = 650
 		varScene.add(SVGClasses.Line((50, 100), (line_length + 50, 100)))
 
 		my_query = "SELECT * FROM df where CHROM =='" + str(current_chr) + "'"
 		chrom_data = pd.read_sql(my_query, db_connection)
-		# chrom_data = loaded_database[(loaded_database['CHROM'] == chrom)]
 
-		# calculate default position of the variant based on smallest and largest POS values for chromosome
-		if self.graphics_min_pos_textin.text() == "":
-			min_pos = chrom_data['POS'].min()
-			self.graphics_min_pos_textin.setText(str(min_pos))
+		def get_default_min_max():
+			# Find default positions
+			if (current_pos / 2) < 2500000:
+				min_pos = (current_pos / 2)
+				max_pos = current_pos + (current_pos / 2)
+			elif (current_pos - 2500000) > chrom_data['POS'].min():
+				min_pos = (current_pos - (2500000 - 1))
+				max_pos = (current_pos + (2500000 - 1))
+			else:
+				min_pos = chrom_data['POS'].min()
+				max_pos = min_pos + (5000000 - 1)
 
-		if self.graphics_max_pos_textin.text() == "":
-			max_pos = chrom_data['POS'].max()
+			min_pos = int(float(min_pos))
+			max_pos = int(float(max_pos))
 			self.graphics_max_pos_textin.setText(str(max_pos))
+			self.graphics_min_pos_textin.setText(str(min_pos))
+			return min_pos, max_pos
 
-		min_pos = int(self.graphics_min_pos_textin.text())
-		max_pos = int(self.graphics_max_pos_textin.text())
+		if not read_pos_input:
+			min_pos, max_pos = get_default_min_max()
+		else:
+			max_pos = int(self.graphics_max_pos_textin.text())
+			min_pos = int(self.graphics_min_pos_textin.text())
+			if min_pos == 0 or max_pos == 0:
+				min_pos, max_pos = get_default_min_max()
+			# inverse, if user put the two wrong way around
+			if max_pos < min_pos:
+				self.graphics_max_pos_textin.setText(str(min_pos))
+				self.graphics_min_pos_textin.setText(str(max_pos))
+				min_pos = int(self.graphics_max_pos_textin.text())
+				max_pos = int(self.graphics_min_pos_textin.text())
 
-		te_pos = float(float(current_pos - min_pos) / float(max_pos - min_pos))
-		te_pos = te_pos * line_length
-		te_pos = te_pos + 50
+		# reduce length of request if it will fail due to size
+		if (max_pos - min_pos) > (5000000 - 1):
+			max_pos = min_pos + (5000000 - 1)
+
+		# if ENSEMBL gene location not already found, then fetch it
+		chrom_genes_empty_bool = pd.read_sql(
+			"SELECT name FROM sqlite_master WHERE type='table' AND name='chrom_genes';", db_connection).empty
+		if chrom_genes_empty_bool:
+			min_db_pos, max_db_pos = 0, 0  # make sure annotation runs
+		else:
+			min_db_pos = pd.read_sql(
+				'SELECT DISTINCT MIN(start) FROM chrom_genes WHERE chrom = ' + current_chr + ' AND gene_id <> "";',
+				db_connection)
+			max_db_pos = pd.read_sql(
+				'SELECT DISTINCT MAX(end) FROM chrom_genes WHERE chrom = ' + current_chr + ' AND gene_id <> "";',
+				db_connection)
+			min_db_pos = list(min_db_pos.iterrows())[0][0]
+			max_db_pos = list(max_db_pos.iterrows())[0][0]
+
+		if not min_db_pos <= current_pos <= max_db_pos:
+
+			# if chrom '01' then flatten to '1' so works with the API
+			if is_number_bool(current_chr):
+				current_chr = str(int(current_chr))
+
+			# TODO: ask for organsim in latin in settings
+			api_request_str = "https://rest.ensembl.org/overlap/region/%s/%s:%d-%d?feature=gene;feature=transcript;\
+			feature=cds;feature=exon" % (config['organism'], current_chr, min_pos, max_pos)
+
+			def request_ensembl_gene_pos():
+				api_request = requests.get(api_request_str, headers={"Content-Type": "application/json"})
+				if not api_request.ok:
+					throw_error_message(
+						"ENSEMBLE rejected API Call, please try a smaller nucleotide range, or verify internet access")
+					return False
+				else:
+					return api_request
+
+			ensembl_gene_pos_req = request_ensembl_gene_pos()
+			if ensembl_gene_pos_req:
+				sqlite_output = sqlite3.connect(sqlite_output_name)
+
+				# if we got any data back from ENSEMBL
+				if len(ensembl_gene_pos_req.json()) > 0:
+					ensembl_gene_pos_df = pd.DataFrame.from_dict(ensembl_gene_pos_req.json())
+					ensembl_gene_pos_df['chrom'] = current_chr
+					ensembl_gene_pos_df.to_sql('chrom_genes', sqlite_output, if_exists='append', index=True)
+
+		# get percentage of line length that variant is to show up
+		def rel_position_on_line(position):
+			rel_pos = position - min_pos
+			rel_pos = float(float(rel_pos) / float(max_pos - min_pos))
+			rel_pos = rel_pos * line_length
+			rel_pos = rel_pos + 50
+			return rel_pos
+
+		alleles_to_draw = []
+		my_query = "SELECT external_name,start,end FROM (SELECT DISTINCT gene_id, external_name,start,end FROM chrom_genes WHERE gene_id <> '' and start >= %d and end <= %d);" % (
+		min_pos, max_pos)
+		alleles_list = pd.read_sql(my_query, db_connection)
+		if not alleles_list.empty:
+			allele_nb = 0
+			for index, line in alleles_list.iterrows():
+
+				start_pos_on_line = rel_position_on_line(line['start'])
+				if start_pos_on_line < 50:
+					start_pos_on_line = 50
+
+				end_pos_on_line = rel_position_on_line(line['end'])
+				if end_pos_on_line > (line_length + 50):
+					end_pos_on_line = line_length + 50
+
+				new_allele = SVGClasses.Allele(rel_position_on_line(line['start']), end_pos_on_line,
+				                               line['external_name'], allele_nb)
+
+				# add allele to list thatll be added to SVG
+				alleles_to_draw.append(new_allele)
+
+				# this means alleles get all the colors
+				allele_nb += 1
+				if allele_nb > 4:
+					allele_nb = 0
+
+		te_pos = rel_position_on_line(current_pos)
 
 		self.empty_qt_layout(self.graphicsView_layout)
 		self.graphics_chr_label.setText(str(current_chr))
@@ -926,8 +1038,18 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		else:
 			varScene.add(SVGClasses.TE(te_pos))
 
+		if len(alleles_to_draw) > 0:
+			for allele in alleles_to_draw:
+				if allele.getWidth() < 7:
+					alleles_to_draw.remove(allele)
+
+			for allele in alleles_to_draw:
+				if len(alleles_to_draw) > 6:
+					allele = allele.removeName()
+				varScene.add(allele)
+
 		varScene.write_svg(svg_output_name)
-		svgWidget = self.graphicsView_layout.addWidget(QSvgWidget(svg_output_name))
+		self.graphicsView_layout.addWidget(QSvgWidget(svg_output_name))
 
 	def filter_table(self):
 		"""
@@ -951,17 +1073,19 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			# Filter out Null values to avoid corrupting item count
 			split_filter_text = filter(None, split_filter_text)
 			split_filter_text = list(split_filter_text)
-			split_filter_text = ["'" + str(split_filter_text[i]) + "'" for i in range(0,len(split_filter_text))]
+			split_filter_text = ["'" + str(split_filter_text[i]) + "'" for i in range(0, len(split_filter_text))]
 			if len(split_filter_text) == 2:
 				self.filter_text.setText(
 					"Filtering to show " + selected_filter + " from " + str(split_filter_text[0]) + " to " + str(
 						split_filter_text[1]))
 
 				if split_filter_text[0] > split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[1] + " and " + selected_filter + "<=" + \
+					filter_condition = selected_filter + ">=" + split_filter_text[
+						1] + " and " + selected_filter + "<=" + \
 					                   split_filter_text[0]
 				elif split_filter_text[0] < split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[0] + " and " + selected_filter + "<=" + \
+					filter_condition = selected_filter + ">=" + split_filter_text[
+						0] + " and " + selected_filter + "<=" + \
 					                   split_filter_text[1]
 				else:
 					filter_condition = selected_filter + "=" + split_filter_text[0]
@@ -979,9 +1103,9 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			nb_filters = len(split_filter_text)
 			if nb_filters >= 1:
 				self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(split_filter_text))
-				split_filter_text = str(split_filter_text).replace('[','')
-				split_filter_text = str(split_filter_text).replace(']','')
-				split_filter_text = str(split_filter_text).replace(',',' OR ' + selected_filter + "=")
+				split_filter_text = str(split_filter_text).replace('[', '')
+				split_filter_text = str(split_filter_text).replace(']', '')
+				split_filter_text = str(split_filter_text).replace(',', ' OR ' + selected_filter + "=")
 				filter_condition = selected_filter + "=" + split_filter_text
 
 			else:
@@ -1002,7 +1126,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		filtered_table = pd.read_sql_query("SELECT * from df where " + filter_condition, sqlite_connection)
 		self.populate_table(filtered_table)
 
-
 	def write_database_to_interface(self, loaded_database):
 		"""
 		function that clears the interface if it already has data,
@@ -1020,7 +1143,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.filter_box.setEnabled(True)
 		self.view_variant_btn.setEnabled(True)
 		self.graphicsView.setMaximumHeight(0)
-
 
 		# get column numbers for ID, POS, etc.
 		self.progress_bar(47, "Extracting column data")
@@ -1045,28 +1167,25 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.filter_table_btn.clicked.connect(self.filter_table)
 		self.view_variant_btn.clicked.connect(self.generate_variant_graphic)
 		self.graphics_hide_view_btn.clicked.connect(self.hide_graphics_view)
-		self.graphics_reload_btn.clicked.connect(self.generate_variant_graphic)
+		self.graphics_reload_btn.clicked.connect(self.reload_generate_variant_graphic)
+		self.export_svg_toolbtn.clicked.connect(self.save_svg)
 
 		metadata_sql_result = pd.read_sql_query("SELECT DISTINCT Tag,Result FROM metadata", sqlite_connection)
-		for i in range(0,len(metadata_sql_result)):
+		for i in range(0, len(metadata_sql_result)):
 			self.dynamic_metadata_label_tags.addWidget(QtWidgets.QLabel(metadata_sql_result['Tag'][i], self))
 			self.dynamic_metadata_label_results.addWidget(QtWidgets.QLabel(metadata_sql_result['Result'][i], self))
 
-
-
 		var_counts = {}
 		stats_sql_result = pd.read_sql_query("SELECT * FROM stats", sqlite_connection)
-		for i in range(0,len(stats_sql_result)):
+		for i in range(0, len(stats_sql_result)):
 			var_counts_key = stats_sql_result['Tag'][i]
 			var_counts_value = stats_sql_result['Result'][i]
 			var_counts[var_counts_key] = var_counts_value
-
 
 		if "ALT_Types" in var_counts:
 			ALT_Types = eval(var_counts["ALT_Types"])
 
 		self.progress_bar(49, "Plotting Statistics")
-
 
 		if "ALT_Types" in var_counts:
 			# plot piechart of proportions of types of ALT
@@ -1135,7 +1254,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		# empty layout from previous selection
 		self.empty_qt_layout(self.chrom_stat_plot_layout)
 
-
 		# filter loaded_database to only results from chosen chromosome
 		my_query = "SELECT * FROM df where CHROM =='" + str(chrom) + "'"
 		chrom_data = pd.read_sql(my_query, db_connection)
@@ -1172,7 +1290,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 	def populate_table(self, selected_data):
 		if selected_data is None:
-			throw_error_message("Can't Populate Table: was passed a None object. Verify that input databbase or VCF is not corrupt")
+			throw_error_message(
+				"Can't Populate Table: was passed a None object. Verify that input databbase or VCF is not corrupt")
 			return
 
 		# clear current table
@@ -1283,6 +1402,8 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		# config['auto_annotate'] = self.vcf_chunk_size
 		config['max_memory'] = self.max_memory_lineedit.text()
 		config['genome_version'] = self.genome_version_lineEdit.text()
+		config['organism'] = self.organism_lineedit.text().replace(' ', '_')
+
 		# Write settings to YAML file
 		with open(config_file, 'w') as configf:
 			configf.write(yaml.safe_dump(config, default_flow_style=False))
@@ -1311,7 +1432,7 @@ if __name__ == '__main__':
 	global sqlite_output_name, vcf_output_filename
 	svg_output_name = os.path.join(config['working_dir'], 'variant_pic.svg')
 	sqlite_output_name = os.path.join(config['working_dir'], 'database.sqlite')
-	sqlite_connection = sqlite3.connect(sqlite_output_name)
+	sqlite_connection = sqlite3.connect(sqlite_output_name, isolation_level=None)
 	vcf_output_filename = os.path.join(config['working_dir'], 'vcf_output_filename.vcf')
 	annotated_vcf_output_filename = os.path.join(config['working_dir'], 'vcf_annot_filename.vcf')
 

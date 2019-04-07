@@ -30,7 +30,7 @@
        <enum>Qt::LeftToRight</enum>
       </property>
       <property name="currentIndex">
-          <number>3</number>
+          <number>2</number>
       </property>
       <property name="usesScrollButtons">
        <bool>false</bool>
@@ -474,6 +474,13 @@
                                              </size>
                                          </property>
                                      </spacer>
+                                 </item>
+                                 <item>
+                                     <widget class="QToolButton" name="export_svg_toolbtn">
+                                         <property name="text">
+                                             <string>...</string>
+                                         </property>
+                                     </widget>
                                  </item>
                                  <item>
                                      <widget class="QPushButton" name="graphics_hide_view_btn">

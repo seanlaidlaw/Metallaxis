@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-       <width>259</width>
-       <height>542</height>
+       <width>314</width>
+       <height>617</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -176,6 +176,20 @@
       </widget>
      </item>
         <item>
+            <widget class="QLabel" name="label_11">
+                <property name="text">
+                    <string>Organism</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <widget class="QLineEdit" name="organism_lineedit">
+                <property name="text">
+                    <string>homo sapiens</string>
+                </property>
+            </widget>
+        </item>
+        <item>
             <widget class="QLabel" name="label_9">
                 <property name="text">
                     <string>Genome Version</string>
@@ -188,7 +202,17 @@
                     <string/>
                 </property>
                 <property name="text">
-                    <string>GRCh37.75</string>
+                    <string>GRCh38.86</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <widget class="QLabel" name="label_10">
+                <property name="enabled">
+                    <bool>false</bool>
+                </property>
+                <property name="text">
+                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;TextLabel&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                 </property>
             </widget>
         </item>
@@ -227,7 +251,7 @@
                 </property>
                 <property name="text">
                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;At
-                        least 4 Gb is required for Annotation&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                        least 4 Gb is required for annotation&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
                     </string>
                 </property>
             </widget>
