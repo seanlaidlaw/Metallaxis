@@ -1,0 +1,14 @@
+if [ "${PWD##*/}" != "Metallaxis" ]; then
+	rm -r build dist Metallaxis.egg-info
+fi
+
+echo ""
+echo "Preflight Checks:"
+echo "> make sure youve changed version number on app_setup/setup.py"
+
+echo ""
+echo ""
+cd app_setup
+python3 setup.py py2app -A
+echo ""
+create-dmg "dist/Metallaxis.app"
