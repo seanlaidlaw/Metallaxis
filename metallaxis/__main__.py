@@ -883,7 +883,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		if not load_session:
 
 			# get metadata and variant counts from vcf
-			if self.MetallaxisSettings.annotation_checkbox.isChecked():
+			if config['auto_annotate']:
 				if not already_annotated(selected_vcf):
 					selected_vcf = annotate_vcf(selected_vcf)
 
@@ -1421,7 +1421,7 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		config = {}
 		config['working_dir'] = self.working_directory_lineedit.text()
 		config['vcf_chunk_size'] = self.vcf_chunk_size.text()
-		# config['auto_annotate'] = self.vcf_chunk_size
+		config['auto_annotate'] = self.annotation_checkbox.isChecked()
 		config['max_memory'] = self.max_memory_lineedit.text()
 		config['genome_version'] = self.genome_version_lineEdit.text()
 		config['organism'] = self.organism_lineedit.text().replace(' ', '_')
