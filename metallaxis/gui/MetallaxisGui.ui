@@ -6,37 +6,120 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>847</width>
-    <height>587</height>
+    <width>883</width>
+    <height>596</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
+  <property name="toolButtonStyle">
+   <enum>Qt::ToolButtonIconOnly</enum>
+  </property>
+  <property name="animated">
+   <bool>false</bool>
+  </property>
+  <property name="documentMode">
+   <bool>false</bool>
+  </property>
   <widget class="QWidget" name="centralwidget">
    <property name="layoutDirection">
     <enum>Qt::LeftToRight</enum>
    </property>
-      <layout class="QVBoxLayout" name="verticalLayout_5">
+   <layout class="QVBoxLayout" name="verticalLayout_5">
+    <property name="spacing">
+     <number>-1</number>
+    </property>
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="enabled">
        <bool>true</bool>
       </property>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Helvetica Neue</family>
+        <pointsize>14</pointsize>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="contextMenuPolicy">
+       <enum>Qt::ActionsContextMenu</enum>
+      </property>
       <property name="acceptDrops">
-       <bool>true</bool>
+       <bool>false</bool>
       </property>
       <property name="layoutDirection">
        <enum>Qt::LeftToRight</enum>
       </property>
+      <property name="autoFillBackground">
+       <bool>true</bool>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTabBar {
+background-color: #070E28;
+qproperty-drawBase:0;
+}
+
+QTabBar::tab {
+color: #b6b6b6;
+background-color: #070E28;
+height: 70px;
+width: 70px;
+padding-bottom: 30px;
+}
+
+QTabBar::tab:hover {
+color: #fff;
+/*background-color: #172044; */
+}
+
+QTabBar::tab:selected {
+color: #fff;
+background-color: #172044;
+}</string>
+      </property>
+      <property name="tabPosition">
+       <enum>QTabWidget::West</enum>
+      </property>
+      <property name="tabShape">
+       <enum>QTabWidget::Rounded</enum>
+      </property>
       <property name="currentIndex">
-          <number>1</number>
+       <number>3</number>
+      </property>
+      <property name="iconSize">
+       <size>
+        <width>35</width>
+        <height>35</height>
+       </size>
       </property>
       <property name="usesScrollButtons">
        <bool>false</bool>
       </property>
       <property name="documentMode">
-       <bool>false</bool>
+       <bool>true</bool>
       </property>
       <property name="tabsClosable">
        <bool>false</bool>
@@ -45,8 +128,11 @@
        <bool>false</bool>
       </property>
       <widget class="QWidget" name="vcf_load_tab">
+       <property name="autoFillBackground">
+        <bool>true</bool>
+       </property>
        <attribute name="title">
-        <string>VCF File</string>
+        <string/>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_5">
         <item>
@@ -170,7 +256,7 @@
         <bool>true</bool>
        </property>
        <attribute name="title">
-        <string>Statistics</string>
+        <string/>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_3">
         <item>
@@ -183,8 +269,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-                <width>775</width>
-                <height>466</height>
+             <width>775</width>
+             <height>530</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -212,7 +298,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                      <width>747</width>
+                   <width>747</width>
                    <height>76</height>
                   </rect>
                  </property>
@@ -245,21 +331,21 @@
                <number>0</number>
               </property>
               <item>
-                  <widget class="QLabel" name="chrom_selection_label">
-                      <property name="enabled">
-                          <bool>false</bool>
-                      </property>
+               <widget class="QLabel" name="chrom_selection_label">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
                 <property name="text">
                  <string>Choose a chromosome to view variants by position:</string>
                 </property>
                </widget>
               </item>
               <item>
-                  <widget class="QComboBox" name="chrom_selection_stat_comboBox">
-                      <property name="enabled">
-                          <bool>false</bool>
-                      </property>
-                  </widget>
+               <widget class="QComboBox" name="chrom_selection_stat_comboBox">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+               </widget>
               </item>
              </layout>
             </item>
@@ -287,7 +373,7 @@
       </widget>
       <widget class="QWidget" name="viewer_tab">
        <attribute name="title">
-        <string>Viewer</string>
+        <string/>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_6">
         <item>
@@ -296,44 +382,44 @@
            <number>0</number>
           </property>
           <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_2">
-                  <property name="topMargin">
-                      <number>0</number>
-                  </property>
-                  <item>
-                      <widget class="QLabel" name="filter_text">
-                          <property name="text">
-                              <string/>
-                          </property>
-                          <property name="wordWrap">
-                              <bool>false</bool>
-                          </property>
-                      </widget>
-                  </item>
-                  <item>
-                      <widget class="QLabel" name="filter_label">
-                          <property name="enabled">
-                              <bool>false</bool>
-                          </property>
-                          <property name="text">
-                              <string>Filter VCF Table (e.g CHROM 1,3,5)</string>
-                          </property>
-                      </widget>
-                  </item>
-                  <item>
-                      <spacer name="horizontalSpacer_2">
-                          <property name="orientation">
-                              <enum>Qt::Horizontal</enum>
-                          </property>
-                          <property name="sizeHint" stdset="0">
-                              <size>
-                                  <width>40</width>
-                                  <height>20</height>
-                              </size>
-                          </property>
-                      </spacer>
-                  </item>
-              </layout>
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="filter_text">
+              <property name="text">
+               <string/>
+              </property>
+              <property name="wordWrap">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="filter_label">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="text">
+               <string>Filter VCF Table (e.g CHROM 1,3,5)</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout">
@@ -378,8 +464,14 @@
             <property name="enabled">
              <bool>false</bool>
             </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
             <property name="alternatingRowColors">
              <bool>true</bool>
+            </property>
+            <property name="selectionBehavior">
+             <enum>QAbstractItemView::SelectRows</enum>
             </property>
             <property name="showGrid">
              <bool>true</bool>
@@ -398,119 +490,119 @@
             </property>
            </widget>
           </item>
+          <item>
+           <widget class="QPushButton" name="view_variant_btn">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>View Variant</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QFrame" name="graphicsView">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::Panel</enum>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Sunken</enum>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_9">
              <item>
-                 <widget class="QPushButton" name="view_variant_btn">
-                     <property name="enabled">
-                         <bool>false</bool>
-                     </property>
-                     <property name="text">
-                         <string>View Variant</string>
-                     </property>
-                 </widget>
+              <layout class="QHBoxLayout" name="horizlayout">
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="label_2">
+                 <property name="text">
+                  <string>Displaying Chr</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="graphics_chr_label">
+                 <property name="text">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_4">
+                 <property name="text">
+                  <string>from pos:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="graphics_min_pos_textin"/>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_5">
+                 <property name="text">
+                  <string>to pos:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="graphics_max_pos_textin"/>
+               </item>
+               <item>
+                <widget class="QPushButton" name="graphics_reload_btn">
+                 <property name="text">
+                  <string>Reload</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="horizontalSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QToolButton" name="export_svg_toolbtn">
+                 <property name="text">
+                  <string>...</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="graphics_hide_view_btn">
+                 <property name="text">
+                  <string>Hide</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
              <item>
-                 <widget class="QFrame" name="graphicsView">
-                     <property name="minimumSize">
-                         <size>
-                             <width>0</width>
-                             <height>0</height>
-                         </size>
-                     </property>
-                     <property name="frameShape">
-                         <enum>QFrame::Panel</enum>
-                     </property>
-                     <property name="frameShadow">
-                         <enum>QFrame::Sunken</enum>
-                     </property>
-                     <layout class="QVBoxLayout" name="verticalLayout_9">
-                         <item>
-                             <layout class="QHBoxLayout" name="horizlayout">
-                                 <property name="topMargin">
-                                     <number>0</number>
-                                 </property>
-                                 <item>
-                                     <widget class="QLabel" name="label_2">
-                                         <property name="text">
-                                             <string>Displaying Chr</string>
-                                         </property>
-                                     </widget>
-                                 </item>
-                                 <item>
-                                     <widget class="QLabel" name="graphics_chr_label">
-                                         <property name="text">
-                                             <string/>
-                                         </property>
-                                     </widget>
-                                 </item>
-                                 <item>
-                                     <widget class="QLabel" name="label_4">
-                                         <property name="text">
-                                             <string>from pos:</string>
-                                         </property>
-                                     </widget>
-                                 </item>
-                                 <item>
-                                     <widget class="QLineEdit" name="graphics_min_pos_textin"/>
-                                 </item>
-                                 <item>
-                                     <widget class="QLabel" name="label_5">
-                                         <property name="text">
-                                             <string>to pos:</string>
-                                         </property>
-                                     </widget>
-                                 </item>
-                                 <item>
-                                     <widget class="QLineEdit" name="graphics_max_pos_textin"/>
-                                 </item>
-                                 <item>
-                                     <widget class="QPushButton" name="graphics_reload_btn">
-                                         <property name="text">
-                                             <string>Reload</string>
-                                         </property>
-                                     </widget>
-                                 </item>
-                                 <item>
-                                     <spacer name="horizontalSpacer">
-                                         <property name="orientation">
-                                             <enum>Qt::Horizontal</enum>
-                                         </property>
-                                         <property name="sizeHint" stdset="0">
-                                             <size>
-                                                 <width>40</width>
-                                                 <height>20</height>
-                                             </size>
-                                         </property>
-                                     </spacer>
-                                 </item>
-                                 <item>
-                                     <widget class="QToolButton" name="export_svg_toolbtn">
-                                         <property name="text">
-                                             <string>...</string>
-                                         </property>
-                                     </widget>
-                                 </item>
-                                 <item>
-                                     <widget class="QPushButton" name="graphics_hide_view_btn">
-                                         <property name="text">
-                                             <string>Hide</string>
-                                         </property>
-                                     </widget>
-                                 </item>
-                             </layout>
-                         </item>
-                         <item>
-                             <layout class="QVBoxLayout" name="graphicsView_layout"/>
-                         </item>
-                     </layout>
-                 </widget>
+              <layout class="QVBoxLayout" name="graphicsView_layout"/>
              </item>
+            </layout>
+           </widget>
+          </item>
          </layout>
         </item>
        </layout>
       </widget>
       <widget class="QWidget" name="about_tab">
        <attribute name="title">
-        <string notr="true">About</string>
+        <string notr="true"/>
        </attribute>
        <layout class="QGridLayout" name="gridLayout">
         <item row="0" column="0">
@@ -557,7 +649,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>847</width>
+     <width>883</width>
      <height>22</height>
     </rect>
    </property>

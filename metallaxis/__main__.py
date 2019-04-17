@@ -30,7 +30,7 @@ from itertools import islice
 
 # to build graphical interface
 from PyQt5 import QtCore, QtWidgets, uic
-from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtGui import QDesktopServices, QIcon
 from PyQt5.QtWidgets import QApplication, QMessageBox, QDesktopWidget
 from PyQt5.QtSvg import QSvgWidget
 
@@ -65,9 +65,9 @@ config_file = os.path.join(config_directory, "metallaxis_config.yaml")
 # Interface XML files
 current_file_path = __file__
 current_file_dir = os.path.dirname(current_file_path)
-MetGUIui = os.path.join(current_file_dir, "MetallaxisGui.ui")
-MetSETui = os.path.join(current_file_dir, "MetallaxisSettings.ui")
-MetPROGui = os.path.join(current_file_dir, "MetallaxisProgress.ui")
+MetGUIui = os.path.join(current_file_dir, "gui/MetallaxisGui.ui")
+MetSETui = os.path.join(current_file_dir, "gui/MetallaxisSettings.ui")
+MetPROGui = os.path.join(current_file_dir, "gui/MetallaxisProgress.ui")
 
 # Annotation executables
 snpsift_jar = os.path.join(current_file_dir, "annotation/SnpSift.jar")
@@ -761,6 +761,10 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		# Setup inital GUI
 		self.graphicsView.setMaximumHeight(0)
+		self.tabWidget.setTabIcon(0,QIcon(os.path.join(current_file_dir, 'gui/logo.png')))
+		self.tabWidget.setTabIcon(1,QIcon(os.path.join(current_file_dir, 'gui/graph_icon.png')))
+		self.tabWidget.setTabIcon(2,QIcon(os.path.join(current_file_dir, 'gui/table.png')))
+		self.tabWidget.setTabIcon(3,QIcon(os.path.join(current_file_dir, 'gui/about.png')))
 
 		# Center GUI on screen
 		qt_rectangle = self.frameGeometry()
