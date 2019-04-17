@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Settings</class>
+ <widget class="QDialog" name="Settings">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+       <width>314</width>
+       <height>617</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <property name="sizeGripEnabled">
+   <bool>false</bool>
+  </property>
+  <property name="modal">
+   <bool>false</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="label_2">
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:14pt; font-weight:600;&quot;&gt;Metallaxis Settings:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="label_6">
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;justify&quot;&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;Changed settings will apply on next file open.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="scaledContents">
+      <bool>false</bool>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+       <widget class="Line" name="line">
+           <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+           </property>
+       </widget>
+   </item>
+      <item>
+          <widget class="QLabel" name="working_directory_label">
+              <property name="text">
+                  <string>Working Directory</string>
+              </property>
+          </widget>
+      </item>
+      <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+              <property name="topMargin">
+                  <number>0</number>
+              </property>
+              <item>
+                  <widget class="QLineEdit" name="working_directory_lineedit"/>
+              </item>
+              <item>
+                  <widget class="QPushButton" name="change_wd_btn">
+                      <property name="text">
+                          <string>Change</string>
+                      </property>
+                  </widget>
+              </item>
+          </layout>
+      </item>
+      <item>
+          <widget class="Line" name="line_2">
+              <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+              </property>
+          </widget>
+      </item>
+   <item>
+    <widget class="QLabel" name="label_3">
+     <property name="text">
+      <string>VCF Chunking Settings:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout_3">
+     <property name="bottomMargin">
+      <number>10</number>
+     </property>
+     <item>
+         <widget class="QLineEdit" name="vcf_chunk_size">
+             <property name="text">
+                 <string>10000</string>
+             </property>
+         </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_4">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;Read VCF files this many lines at a time&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="Line" name="line_3">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="label_5">
+     <property name="text">
+      <string>VCF Annotation</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout_2">
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QCheckBox" name="annotation_checkbox">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="text">
+        <string>Annotate variants</string>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+       <property name="checked">
+        <bool>false</bool>
+       </property>
+       <property name="autoExclusive">
+        <bool>true</bool>
+       </property>
+       <property name="tristate">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="annotate_vcf_label">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;Automatically annotates variants that have valid IDs(Supports dbSNP, COSMIC and HGMD identifiers)&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+        <item>
+            <widget class="QLabel" name="label_11">
+                <property name="text">
+                    <string>Organism</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <widget class="QLineEdit" name="organism_lineedit">
+                <property name="text">
+                    <string>homo sapiens</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <widget class="QLabel" name="label_9">
+                <property name="text">
+                    <string>Genome Version</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <widget class="QLineEdit" name="genome_version_lineEdit">
+                <property name="inputMask">
+                    <string/>
+                </property>
+                <property name="text">
+                    <string>GRCh38.86</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <widget class="QLabel" name="label_10">
+                <property name="enabled">
+                    <bool>false</bool>
+                </property>
+                <property name="text">
+                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;TextLabel&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <widget class="QLabel" name="label_7">
+                <property name="text">
+                    <string>Maximum Memory for annotation:</string>
+                </property>
+            </widget>
+        </item>
+        <item>
+            <layout class="QHBoxLayout" name="horizontalLayout">
+                <property name="topMargin">
+                    <number>0</number>
+                </property>
+                <item>
+                    <widget class="QLineEdit" name="max_memory_lineedit">
+                        <property name="text">
+                            <string>5</string>
+                        </property>
+                    </widget>
+                </item>
+                <item>
+                    <widget class="QLabel" name="label">
+                        <property name="text">
+                            <string>Gb</string>
+                        </property>
+                    </widget>
+                </item>
+            </layout>
+        </item>
+        <item>
+            <widget class="QLabel" name="label_8">
+                <property name="enabled">
+                    <bool>false</bool>
+                </property>
+                <property name="text">
+                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;At
+                        least 4 Gb is required for annotation&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+                    </string>
+                </property>
+            </widget>
+        </item>
+    </layout>
+   </item>
+      <item>
+          <widget class="QPushButton" name="save_settings_btn">
+              <property name="text">
+                  <string>Save Settings and Return</string>
+              </property>
+          </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
