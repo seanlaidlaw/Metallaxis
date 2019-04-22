@@ -1170,7 +1170,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			# Filter out Null values to avoid corrupting item count
 			split_filter_text = filter(None, split_filter_text)
 			split_filter_text = list(split_filter_text)
-			split_filter_text = ["'" + str(split_filter_text[i]) + "'" for i in range(0, len(split_filter_text))]
+			split_filter_text = ["'" + str(split_filter_text[i]).replace('\'', '').replace(';', '') + "'" for i in range(0, len(split_filter_text))]
 			if len(split_filter_text) == 2:
 				self.filter_text.setText(
 					"Filtering to show " + selected_filter + " from " + str(split_filter_text[0]) + " to " + str(
@@ -1185,7 +1185,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 						0] + " and " + selected_filter + "<=" + \
 									   split_filter_text[1]
 				else:
-					filter_condition = selected_filter + "=" + split_filter_text[0]
+					filter_condition = selected_filter + "==" + split_filter_text[0]
 
 
 			else:
@@ -1202,7 +1202,9 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(split_filter_text))
 				split_filter_text = str(split_filter_text).replace('[', '')
 				split_filter_text = str(split_filter_text).replace(']', '')
-				split_filter_text = str(split_filter_text).replace(',', ' OR ' + selected_filter + "=")
+				split_filter_text = str(split_filter_text).replace('\'', '')
+				split_filter_text = str(split_filter_text).replace(' ', '')
+				split_filter_text = str(split_filter_text).replace(',', ' OR ' + selected_filter + "==")
 				filter_condition = selected_filter + "=" + split_filter_text
 
 			else:
@@ -1218,7 +1220,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		else:
 			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
-			filter_condition = "'" + selected_filter + "'=='" + filter_text + "'"
+			filter_condition = selected_filter + "==" + filter_text + ";"
 
 		filtered_table = pd.read_sql_query("SELECT * from df where " + filter_condition, sqlite_connection)
 		self.populate_table(filtered_table)
