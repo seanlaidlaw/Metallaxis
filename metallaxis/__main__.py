@@ -22,6 +22,7 @@ import bz2
 import gzip
 
 import matplotlib  # to plot graphs
+
 matplotlib.use("Qt5Agg")  # to make matplotlib behave nicely with PyQT5
 
 # to read selected lines of files (reduce RAM usage for big files)
@@ -570,6 +571,7 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 	cursor.execute("DROP TABLE IF EXISTS stats;")
 	cursor.execute("DROP TABLE IF EXISTS metadata;")
 	cursor.execute("DROP TABLE IF EXISTS chrom_genes;")
+	cursor.execute("DROP TABLE IF EXISTS previous_annotation_requests;")
 	sqlite_output.commit()
 
 	# write each entry from metadata_dict to a new "metadata" table in database
@@ -608,14 +610,14 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 	global info_cols_to_add
 	info_cols_to_add = set()
 	chunked_vcf = pd.read_csv(decompressed_file,
-	                          sep="\t",
-	                          # skip rows that started with "#"
-	                          skiprows=range(0, metadata_num - 1),
-	                          # use chunk size that was set in settings
-	                          chunksize=int(config['vcf_chunk_size']),
-	                          low_memory=False,
-	                          # make default data type an object (ie. string)
-	                          dtype=object)
+							  sep="\t",
+							  # skip rows that started with "#"
+							  skiprows=range(0, metadata_num - 1),
+							  # use chunk size that was set in settings
+							  chunksize=int(config['vcf_chunk_size']),
+							  low_memory=False,
+							  # make default data type an object (ie. string)
+							  dtype=object)
 
 	# Run through every chunk of the whole VCF and get the key out of the
 	# key:value pair and add to a set (so no duplicates will be added) that
@@ -646,12 +648,12 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 					anno_info_cols_to_add.append(col)
 
 	chunked_vcf = pd.read_csv(decompressed_file,
-	                          sep="\t",
-	                          skiprows=range(0, metadata_num - 1),
-	                          chunksize=int(config['vcf_chunk_size']),
-	                          low_memory=False,
-	                          # make default data type an object (ie. string)
-	                          dtype=object)
+							  sep="\t",
+							  skiprows=range(0, metadata_num - 1),
+							  chunksize=int(config['vcf_chunk_size']),
+							  low_memory=False,
+							  # make default data type an object (ie. string)
+							  dtype=object)
 
 	for chunk in chunked_vcf:
 		# set the new info column names to be empty by default
@@ -859,7 +861,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		of the database file directly. Accepts no arguments, and returns nothing. This function exists solely to call other
 		functions, as menu items in PyQt can only call one function.
 		"""
-		self.MetallaxisProgress.show()
 
 		if not cli_arg:
 			selected_file = self.select_file()
@@ -897,11 +898,14 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		# populate table
 		self.populate_table(loaded_database)
 
+
 	def hide_graphics_view(self):
 		self.graphicsView.setMaximumHeight(0)
 
+
 	def show_graphics_view(self):
 		self.graphicsView.setMaximumHeight(16777215)
+
 
 	def toggle_graphics_view(self):
 		current_height = self.graphicsView.maximumHeight()
@@ -910,29 +914,52 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		else:
 			self.hide_graphics_view()
 
+
 	def reload_generate_variant_graphic(self):
 		self.generate_variant_graphic(True)
 
+
 	def generate_variant_graphic(self, read_pos_input=False):
-		self.show_graphics_view()
 		current_row = self.viewer_tab_table_widget.currentRow()
 		# if no row selected then stop function
 		if current_row == -1:
 			return
 
-		current_chr = self.viewer_tab_table_widget.item(current_row, 0).text()
-		current_pos = int(self.viewer_tab_table_widget.item(current_row, 1).text())
-		current_alt = self.viewer_tab_table_widget.item(current_row, 4).text()
+		# if multiple selected rows, make a list of them
+		current_rows = set()
+		for row_index in self.viewer_tab_table_widget.selectedIndexes():
+			current_rows.add(row_index.row())
 
 		# SVG Setup
 		varScene = SVGClasses.Scene('variant_scene')
 		line_length = 650
 		varScene.add(SVGClasses.Line((50, 100), (line_length + 50, 100)))
 
+		# Verify only one chromosome in selected rows
+		list_of_selected_chrms = set()
+		for current_row in current_rows:
+			current_chr = self.viewer_tab_table_widget.item(current_row, 0).text()
+			list_of_selected_chrms.add(current_chr)
+		if len(list_of_selected_chrms) > 1:
+			throw_error_message("You can not display multiple chromosomes on the same variant graph, please make two seperate selections")
+			return
+
+		list_of_selected_pos = set()
+		for current_row in current_rows:
+			current_pos = int(self.viewer_tab_table_widget.item(current_row, 1).text())
+			list_of_selected_pos.add(current_pos)
+
+
+
 		my_query = "SELECT * FROM df where CHROM =='" + str(current_chr) + "'"
 		chrom_data = pd.read_sql(my_query, db_connection)
 
-		def get_default_min_max():
+		def get_default_min_max(current_pos):
+			"""
+			make default min and max positions based off of either 2.5Mb
+			either side, or half the position, or the starting point of the
+			VCF + 5Mb.
+			"""
 			# Find default positions
 			if (current_pos / 2) < 2500000:
 				min_pos = (current_pos / 2)
@@ -946,52 +973,46 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 			min_pos = int(float(min_pos))
 			max_pos = int(float(max_pos))
-			self.graphics_max_pos_textin.setText(str(max_pos))
-			self.graphics_min_pos_textin.setText(str(min_pos))
 			return min_pos, max_pos
 
+		# define min_pos and max_pos values
 		if not read_pos_input:
-			min_pos, max_pos = get_default_min_max()
+			if len(current_rows) == 1:
+				min_pos, max_pos = get_default_min_max(current_pos)
+			else:
+				middle_of_range = (max(list_of_selected_pos) + min(list_of_selected_pos))/2
+				min_pos, max_pos = get_default_min_max(middle_of_range)
+
 		else:
+			# if the frame is manually speicified by the user
 			max_pos = int(self.graphics_max_pos_textin.text())
 			min_pos = int(self.graphics_min_pos_textin.text())
 			if min_pos == 0 or max_pos == 0:
-				min_pos, max_pos = get_default_min_max()
-			# inverse, if user put the two wrong way around
-			if max_pos < min_pos:
-				self.graphics_max_pos_textin.setText(str(min_pos))
-				self.graphics_min_pos_textin.setText(str(max_pos))
-				min_pos = int(self.graphics_max_pos_textin.text())
-				max_pos = int(self.graphics_min_pos_textin.text())
+				min_pos, max_pos = get_default_min_max(current_pos)
 
-		# reduce length of request if it will fail due to size
+		# inverse, if user put the two wrong way around
+		if int(max_pos) < int(min_pos):
+			min_pos2 = min_pos
+			min_pos = max_pos
+			max_pos = min_pos2
+			del min_pos2
+
+		# reduce length of request if it will fail API call due to size
 		if (max_pos - min_pos) > (5000000 - 1):
 			max_pos = min_pos + (5000000 - 1)
 
-		# if ENSEMBL gene location not already found, then fetch it
-		chrom_genes_empty_bool = pd.read_sql(
-			"SELECT name FROM sqlite_master WHERE type='table' AND name='chrom_genes';", db_connection).empty
-		if chrom_genes_empty_bool:
-			min_db_pos, max_db_pos = 0, 0  # make sure annotation runs
-		else:
-			min_db_pos = pd.read_sql(
-				'SELECT DISTINCT MIN(start) FROM chrom_genes WHERE chrom = ' + current_chr + ' AND gene_id <> "";',
-				db_connection)
-			max_db_pos = pd.read_sql(
-				'SELECT DISTINCT MAX(end) FROM chrom_genes WHERE chrom = ' + current_chr + ' AND gene_id <> "";',
-				db_connection)
-			min_db_pos = list(min_db_pos.iterrows())[0][0]
-			max_db_pos = list(max_db_pos.iterrows())[0][0]
+		if min_pos < 0:
+			min_pos = 0
 
-		if not min_db_pos <= current_pos <= max_db_pos:
+		self.graphics_max_pos_textin.setText(str(min_pos))
+		self.graphics_min_pos_textin.setText(str(max_pos))
 
+		def get_ENSEMBL_annotation(min_pos, max_pos, current_chr):
 			# if chrom '01' then flatten to '1' so works with the API
 			if is_number_bool(current_chr):
 				current_chr = str(int(current_chr))
 
-			# TODO: ask for organsim in latin in settings
-			api_request_str = "https://rest.ensembl.org/overlap/region/%s/%s:%d-%d?feature=gene;feature=transcript;\
-			feature=cds;feature=exon" % (config['organism'], current_chr, min_pos, max_pos)
+			api_request_str = "https://rest.ensembl.org/overlap/region/" + config['organism'] + "/" + current_chr + ":" + str(min_pos) + "-" + str(max_pos) + "?feature=gene;feature=transcript;feature=cds;feature=exon"
 
 			def request_ensembl_gene_pos():
 				api_request = requests.get(api_request_str, headers={"Content-Type": "application/json"})
@@ -1005,6 +1026,9 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			ensembl_gene_pos_req = request_ensembl_gene_pos()
 			if ensembl_gene_pos_req:
 				sqlite_output = sqlite3.connect(sqlite_output_name)
+				previous_annotation_requests = {'start': [min_pos], 'stop': [max_pos]}
+				previous_annotation_requests = pd.DataFrame.from_dict(previous_annotation_requests)
+				previous_annotation_requests.to_sql('previous_annotation_requests', sqlite_output, if_exists='append', index=True)
 
 				# if we got any data back from ENSEMBL
 				if len(ensembl_gene_pos_req.json()) > 0:
@@ -1012,13 +1036,59 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 					ensembl_gene_pos_df['chrom'] = current_chr
 					ensembl_gene_pos_df.to_sql('chrom_genes', sqlite_output, if_exists='append', index=True)
 
-		# get percentage of line length that variant is to show up
+
+		# check if gene location is already in db
+		# it runs this sql command first as trying to select form no table results in error
+		chrom_genes_empty_bool = pd.read_sql(
+			"SELECT name FROM sqlite_master WHERE type='table' AND name='chrom_genes';", db_connection).empty
+		if chrom_genes_empty_bool:
+			get_ENSEMBL_annotation(min_pos, max_pos, current_chr)
+
+		# if table exists, see if gene location exists in table
+		else:
+			# if no table previous_annotation_requests table exists then annotate
+			previous_annotation_empty_bool = pd.read_sql(
+				"SELECT name FROM sqlite_master WHERE type='table' AND name='previous_annotation_requests';", db_connection).empty
+			if previous_annotation_empty_bool:
+				get_ENSEMBL_annotation(min_pos, max_pos, current_chr)
+
+			# if table exists then check if already annotated
+			else:
+				previous_annotation_requests = pd.read_sql('SELECT start,stop from previous_annotation_requests;', db_connection)
+				already_annotated = False
+				for index, line in previous_annotation_requests.iterrows():
+					for current_pos in list_of_selected_pos:
+						# if current position is between a previously annotated range
+						if int(line['start']) <= int(current_pos) <= int(line['stop']):
+							already_annotated = True
+
+				if not already_annotated:
+				  get_ENSEMBL_annotation(min_pos, max_pos, current_chr)
+
+
 		def rel_position_on_line(position):
+			"""return SVG position to place variant"""
 			rel_pos = position - min_pos
 			rel_pos = float(float(rel_pos) / float(max_pos - min_pos))
 			rel_pos = rel_pos * line_length
 			rel_pos = rel_pos + 50
 			return rel_pos
+
+		# if not read_pos_input:
+			# # if multiple selected rows, get the biggest and smallest pos
+			# if len(list_of_selected_pos) > 1:
+				# min_pos = list_of_selected_pos[0]
+				# max_pos = list_of_selected_pos[1]
+				# for pos in list_of_selected_pos:
+					# if pos < min_pos:
+						# min_pos = pos
+					# if pos > max_pos:
+						# max_pos = pos
+			# min_pos -= 500
+			# max_pos += 500
+		# else:
+			# min_pos = int(self.graphics_max_pos_textin.text())
+			# max_pos = int(self.graphics_min_pos_textin.text())
 
 		alleles_to_draw = []
 		my_query = "SELECT external_name,start,end FROM (SELECT DISTINCT gene_id, external_name,start,end FROM chrom_genes WHERE gene_id <> '' and start >= %d and end <= %d);" % (
@@ -1037,7 +1107,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 					end_pos_on_line = line_length + 50
 
 				new_allele = SVGClasses.Allele(rel_position_on_line(line['start']), end_pos_on_line,
-				                               line['external_name'], allele_nb)
+											line['external_name'], allele_nb)
 
 				# add allele to list thatll be added to SVG
 				alleles_to_draw.append(new_allele)
@@ -1047,30 +1117,36 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				if allele_nb > 4:
 					allele_nb = 0
 
-		te_pos = rel_position_on_line(current_pos)
 
 		self.empty_qt_layout(self.graphicsView_layout)
 		self.graphics_chr_label.setText(str(current_chr))
 
-		if current_alt.startswith('<INS'):
-			varScene.add(SVGClasses.TE(te_pos, "ins"))
-		if current_alt.startswith('<DEL'):
-			varScene.add(SVGClasses.TE(te_pos, "del"))
-		else:
-			varScene.add(SVGClasses.TE(te_pos))
+		for current_row in current_rows:
+			current_pos = int(self.viewer_tab_table_widget.item(current_row, 1).text())
+			current_alt = self.viewer_tab_table_widget.item(current_row, 4).text()
+			te_pos = rel_position_on_line(current_pos)
 
-		if len(alleles_to_draw) > 0:
-			for allele in alleles_to_draw:
-				if allele.getWidth() < 7:
-					alleles_to_draw.remove(allele)
+			if current_alt.startswith('<INS'):
+				varScene.add(SVGClasses.TE(te_pos, "ins"))
+			if current_alt.startswith('<DEL'):
+				varScene.add(SVGClasses.TE(te_pos, "del"))
+			else:
+				varScene.add(SVGClasses.TE(te_pos))
 
-			for allele in alleles_to_draw:
-				if len(alleles_to_draw) > 6:
-					allele = allele.removeName()
-				varScene.add(allele)
+			if len(alleles_to_draw) > 0:
+				for allele in alleles_to_draw:
+					if allele.getWidth() < 9:
+						alleles_to_draw.remove(allele)
+
+				for allele in alleles_to_draw:
+					if len(alleles_to_draw) > 6:
+						allele = allele.removeName()
+					varScene.add(allele)
 
 		varScene.write_svg(svg_output_name)
 		self.graphicsView_layout.addWidget(QSvgWidget(svg_output_name))
+		self.show_graphics_view()
+
 
 	def filter_table(self):
 		"""
@@ -1103,11 +1179,11 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				if split_filter_text[0] > split_filter_text[1]:
 					filter_condition = selected_filter + ">=" + split_filter_text[
 						1] + " and " + selected_filter + "<=" + \
-					                   split_filter_text[0]
+									   split_filter_text[0]
 				elif split_filter_text[0] < split_filter_text[1]:
 					filter_condition = selected_filter + ">=" + split_filter_text[
 						0] + " and " + selected_filter + "<=" + \
-					                   split_filter_text[1]
+									   split_filter_text[1]
 				else:
 					filter_condition = selected_filter + "=" + split_filter_text[0]
 
@@ -1414,7 +1490,7 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 		select_dialog = QtWidgets.QFileDialog()
 		select_dialog.setAcceptMode(select_dialog.AcceptSave)
 		working_directory = select_dialog.getExistingDirectory(directory=config_directory,
-		                                                       caption='Select folder to be working directory')
+															   caption='Select folder to be working directory')
 		self.working_directory_lineedit.setText(working_directory)
 
 	def save_settings(self):
@@ -1435,9 +1511,6 @@ class MetallaxisSettings(settings_base_object, settings_window_object):
 if __name__ == '__main__':
 	MetallaxisApp = QApplication(sys.argv)
 	MetallaxisGui = MetallaxisGuiClass()
-
-	# get annotation by default
-	MetallaxisGui.MetallaxisSettings.annotation_checkbox.setChecked(True)
 
 	# If config file doesn't exist setup one
 	if not os.path.isfile(config_file):
