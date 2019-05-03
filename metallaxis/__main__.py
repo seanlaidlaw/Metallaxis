@@ -834,6 +834,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		save_dialog = QtWidgets.QFileDialog()
 		save_dialog.setAcceptMode(save_dialog.AcceptSave)
 		save_folder = save_dialog.getSaveFileName(self, 'Save variant view as vector image', filter="*.svg")[0]
+		if save_folder == "":
+		    return
 		copyfile(svg_output_name, save_folder)
 
 	def save_analysis(self):
