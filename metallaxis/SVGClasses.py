@@ -24,7 +24,13 @@ class Scene:
 
 	def strarray(self):
 		var = ["<?xml version=\"1.0\"?>\n",
-		       "<svg height=\"%d\" width=\"%d\" >\n" % (self.height, self.width),
+		       "<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"%d\" width=\"%d\" >\n" % (self.height, self.width),
+                       "<style>",
+                       ".allele rect {fill-opacity:0.7}",
+                       ".allele text {visibility: hidden; stroke-width: 0px; font-size: 8pt; font-family: sans-serif;}",
+                       ".allele:hover rect {fill-opacity: 1;}",
+                       ".allele:hover text {visibility: visible;}",
+                       "</style>",
 		       " <g style=\"fill-opacity:1.0; stroke:black;\n",
 		       "  stroke-width:1;\">\n"]
 		for item in self.items: var += item.strarray()
@@ -123,13 +129,16 @@ class Text:
 
 
 class Allele:
-	def __init__(self, start, end, name=None, color_num=1):
+	def __init__(self, start, end, name, biotype, description, exon_id, color_num=1):
 		rectangle_width = end - start
 		color_list = [[171, 138, 222], [221, 136, 187], [206, 146, 135], [222, 213, 138], [206, 146, 135]]
 		self.rect = Rectangle([start, 95], 10, rectangle_width, color_list[color_num], 0.4)
 		self.name = name
 		self.start = start
 		self.end = end
+		self.biotype = biotype
+		self.description = description
+		self.exon_id = exon_id
 
 	def removeName(self):
 		self.name = None
@@ -139,11 +148,15 @@ class Allele:
 		return (self.end - self.start)
 
 	def strarray(self):
-		if self.name != None:
-			self.label = Text([self.start, 117], self.name, 8)
-			self.obj = self.rect.strarray() + self.label.strarray()
-		else:
-			self.obj = self.rect.strarray()
+		self.label = Text([self.start, 117], self.name, 8).strarray()
+		if self.biotype != None:
+		    self.label += Text([self.start, 127], self.biotype, 8).strarray()
+		if self.description != None:
+		    self.label += Text([self.start, 137], self.description, 8).strarray()
+		if self.exon_id != None:
+		    self.label += Text([self.start, 147], self.exon_id, 8).strarray()
+
+		self.obj = ['<g class="allele">'] + self.rect.strarray() + self.label + ['</g>']
 		return self.obj
 
 

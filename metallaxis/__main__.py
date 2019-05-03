@@ -34,6 +34,9 @@ from PyQt5.QtGui import QDesktopServices, QIcon
 from PyQt5.QtWidgets import QApplication, QMessageBox, QDesktopWidget
 from PyQt5.QtSvg import QSvgWidget
 
+from PyQt5 import QtCore, QtGui, QtSvg
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+
 # Import SVG Drawing Classes
 from metallaxis import SVGClasses
 
@@ -73,6 +76,8 @@ MetPROGui = os.path.join(current_file_dir, "gui/MetallaxisProgress.ui")
 snpsift_jar = os.path.join(current_file_dir, "annotation/SnpSift.jar")
 snpeff_jar = os.path.join(current_file_dir, "annotation/SnpEff.jar")
 
+# vector image locations
+svg_output_name = os.path.join(current_file_dir, 'variant_pic.svg')
 
 def throw_warning_message(warning_message):
 	"""
@@ -1091,7 +1096,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			# max_pos = int(self.graphics_min_pos_textin.text())
 
 		alleles_to_draw = []
-		my_query = "SELECT external_name,start,end FROM (SELECT DISTINCT gene_id, external_name,start,end FROM chrom_genes WHERE gene_id <> '' and start >= %d and end <= %d);" % (
+		my_query = "SELECT external_name,start,end,biotype,description,exon_id FROM (SELECT DISTINCT gene_id,external_name,start,end,biotype,description,exon_id FROM chrom_genes WHERE gene_id <> '' and start >= %d and end <= %d);" % (
 		min_pos, max_pos)
 		alleles_list = pd.read_sql(my_query, db_connection)
 		if not alleles_list.empty:
@@ -1106,8 +1111,16 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				if end_pos_on_line > (line_length + 50):
 					end_pos_on_line = line_length + 50
 
-				new_allele = SVGClasses.Allele(rel_position_on_line(line['start']), end_pos_on_line,
-											line['external_name'], allele_nb)
+				if not 'biotype' in line:
+				    line['biotype'] = None
+
+				if not 'description' in line:
+				    line['description'] = None
+
+				if not 'exon_id' in line:
+				    line['exon_id'] = None
+
+				new_allele = SVGClasses.Allele(rel_position_on_line(line['start']), end_pos_on_line, line['external_name'], line['biotype'],line['description'],line['exon_id'], allele_nb)
 
 				# add allele to list thatll be added to SVG
 				alleles_to_draw.append(new_allele)
@@ -1139,12 +1152,14 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 						alleles_to_draw.remove(allele)
 
 				for allele in alleles_to_draw:
-					if len(alleles_to_draw) > 6:
-						allele = allele.removeName()
 					varScene.add(allele)
 
 		varScene.write_svg(svg_output_name)
-		self.graphicsView_layout.addWidget(QSvgWidget(svg_output_name))
+		abs_svg_output_name = os.path.abspath(svg_output_name)
+		interactive_svg_widg = QWebEngineView()
+		self.graphicsView_layout.addWidget(interactive_svg_widg)
+		interactive_svg_widg.load(QtCore.QUrl.fromUserInput(abs_svg_output_name))
+		interactive_svg_widg.setMaximumHeight(200)
 		self.show_graphics_view()
 
 
@@ -1527,7 +1542,6 @@ if __name__ == '__main__':
 
 	# Temporary file names
 	global sqlite_output_name, vcf_output_filename
-	svg_output_name = os.path.join(config['working_dir'], 'variant_pic.svg')
 	sqlite_output_name = os.path.join(config['working_dir'], 'database.sqlite')
 	sqlite_connection = sqlite3.connect(sqlite_output_name, isolation_level=None)
 	vcf_output_filename = os.path.join(config['working_dir'], 'vcf_output_filename.vcf')
