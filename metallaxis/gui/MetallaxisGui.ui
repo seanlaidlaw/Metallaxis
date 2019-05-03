@@ -610,13 +610,16 @@ background-color: #172044;
           <item>
            <widget class="QLabel" name="label">
             <property name="text">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Metallaxis&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Version 1.0&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Copyright © 2018 Sean LAIDLAW&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Some rights reserved.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt; is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License version 3 as published by the Free Software Foundation.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;You should have received a copy of the GNU General Public License along with &lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt;. If not, see http://www.gnu.org/licenses.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;@license GPL-3.0+ http://spdx.org/licenses/GPL-3.0+&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Metallaxis&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Version 0.91&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Developped by:&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;a href=&quot;mailto::seanlaidlaw95@gmail.com&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Sean LAIDLAW&lt;/span&gt;&lt;/a&gt;, &lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Under supervision from Anna-Sophie Fiston-Lavier,&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;With contributing help from Qiqi He&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt; is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License version 3 as published by the Free Software Foundation.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;You should have received a copy of the GNU General Public License along with &lt;span style=&quot; font-style:italic;&quot;&gt;Metallaxis&lt;/span&gt;. If not, see http://www.gnu.org/licenses.&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;@license GPL-3.0+ http://spdx.org/licenses/GPL-3.0+&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="scaledContents">
              <bool>true</bool>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
+            </property>
+            <property name="margin">
+             <number>20</number>
             </property>
             <property name="openExternalLinks">
              <bool>true</bool>
