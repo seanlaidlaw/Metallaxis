@@ -1513,10 +1513,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		column_names = list(selected_data.keys())
 
-		# clear chrom_filter_box
-		self.filter_box.clear()
-		self.filter_text.setText(" ")
-
 		# set filter_box to list column_names
 		self.filter_box.addItems(column_names)
 		# read header labels from the dataframe keys
