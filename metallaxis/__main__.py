@@ -31,7 +31,7 @@ from itertools import islice
 # to build graphical interface
 from PyQt5 import QtCore, QtWidgets, uic
 from PyQt5.QtGui import QDesktopServices, QIcon
-from PyQt5.QtWidgets import QApplication, QMessageBox, QDesktopWidget
+from PyQt5.QtWidgets import QApplication, QCheckBox, QMessageBox, QDesktopWidget
 from PyQt5.QtSvg import QSvgWidget
 
 from PyQt5 import QtCore, QtGui, QtSvg
@@ -741,11 +741,6 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 
 		chunk.to_sql('df', sqlite_output, if_exists='append', index=False)
 
-	# for col in anno_info_cols_to_add:
-	# 	sql_request = "DELETE FROM df WHERE %s IS NULL OR trim(%s) = '';" % (col, col)
-	# 	conn.execute(sql_request)
-	# 	conn.commit()
-	# 	conn.close()
 	return sqlite_output
 
 
@@ -767,6 +762,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		# Setup inital GUI
 		self.graphicsView.setMaximumHeight(0)
+		self.col_selection_scroll_area.setMaximumHeight(0)
 		self.tabWidget.setTabIcon(0,QIcon(os.path.join(current_file_dir, 'gui/logo.png')))
 		self.tabWidget.setTabIcon(1,QIcon(os.path.join(current_file_dir, 'gui/graph_icon.png')))
 		self.tabWidget.setTabIcon(2,QIcon(os.path.join(current_file_dir, 'gui/table.png')))
@@ -780,6 +776,10 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		# buttons on interface
 		self.open_vcf_button.clicked.connect(self.select_and_parse)
 		self.sql_mode_checkBox.stateChanged.connect(self.toggle_sql_mode)
+		self.show_chrom_list_btn.clicked.connect(self.show_column_list)
+		self.col_selection_apply_btn.clicked.connect(self.select_columns)
+		self.deselect_all_cols_btn.clicked.connect(self.deselect_all_cols)
+		self.select_all_cols_btn.clicked.connect(self.select_all_cols)
 		# menus on interface
 		self.actionOpen_VCF.triggered.connect(self.select_and_parse)
 		self.actionSave_Analysis.triggered.connect(self.save_analysis)
@@ -870,6 +870,44 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		else:
 			self.filter_box.setEnabled(True)
 			self.filter_label.setText("Filter VCF Table (e.g CHROM 1,3,5)")
+
+
+	def show_column_list(self):
+		current_height = self.col_selection_scroll_area.maximumHeight()
+		if current_height == 0:
+			self.hide_graphics_view()
+			self.col_selection_scroll_area.setMaximumHeight(16777215)
+
+			self.show_chrom_list_btn.setText("Hide Column Selection")
+		else:
+			self.col_selection_scroll_area.setMaximumHeight(0)
+			self.show_chrom_list_btn.setText("Show Column Selection")
+
+	def deselect_all_cols(self):
+		for col in checkbox_list:
+			col.setChecked(False)
+
+	def select_all_cols(self):
+		for col in checkbox_list:
+			col.setChecked(True)
+
+	def select_columns(self):
+		# get list of selected columns
+		cols_to_display = []
+		for col in checkbox_list:
+			if col.isChecked():
+				cols_to_display.append(col.text())
+
+
+		# turn list of selected columns into SQL query
+		cols_to_display = '", "'.join(cols_to_display)
+		cols_to_display = '"' + cols_to_display + '"'
+		sql_query = "SELECT %s from df;" % (cols_to_display)
+
+		# populate table with returned SQL query
+		filtered_table = pd.read_sql_query(sql_query, sqlite_connection)
+		self.populate_table(filtered_table)
+		self.show_column_list()
 
 	def select_and_parse(self, cli_arg=False):
 		"""
@@ -1296,6 +1334,35 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		ref_col = [i for i, s in enumerate(column_names) if 'REF' in s][0]
 		alt_col = [i for i, s in enumerate(column_names) if 'ALT' in s][0]
 		qual_col = [i for i, s in enumerate(column_names) if 'QUAL' in s][0]
+
+
+		# Create checkboxes for each column name, to allow user to select cols
+		# get list of emtpy columns so they can be deselcted from column box
+		empty_cols = []
+		sql_request = "SELECT * FROM df LIMIT 1;" # only need one row to get column names
+		col_names = pd.read_sql(sql_request, sqlite_connection).keys()
+		for col in col_names:
+			sql_request = "SELECT sum(length('%s')) FROM df;" % (col)
+			col_counts = pd.read_sql(sql_request, sqlite_connection)
+			for key,value in col_counts.iterrows():
+				if is_number_bool(value[0]):
+					if int(value[0]) == 0:
+						empty_cols.append(col)
+
+		global checkbox_list
+		checkbox_list = []
+		row_count,col_count = 0,0
+		for col in col_names:
+			new_checkbox = QCheckBox(col)
+			checkbox_list.append(new_checkbox)
+			if col not in empty_cols:
+				new_checkbox.setChecked(True)
+
+			if col_count > 6:
+				col_count = -1
+				row_count += 1
+			self.column_select_grid.addWidget(new_checkbox, row_count, col_count)
+			col_count += 1
 
 		# Clear metadata layouts
 		self.empty_qt_layout(self.dynamic_metadata_label_results)
