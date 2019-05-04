@@ -419,6 +419,16 @@ background-color: #172044;
               </property>
              </spacer>
             </item>
+            <item>
+             <widget class="QCheckBox" name="sql_mode_checkBox">
+              <property name="text">
+               <string>SQL Mode</string>
+              </property>
+              <property name="tristate">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
            </layout>
           </item>
           <item>
