@@ -3,7 +3,12 @@
 [![Python 3.6](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-# Metallaxis
+
+
+#  Metallaxis 
+![MetallaxisLogo](../../Projet/Metallaxis/icons/Icon128.png)
+
+
 
 Metallaxis is a Python graphical interface for viewing and annotating VCF
 files. On loading a VCF file or compressed variant (vcf.gz,vcf.xz) it will generate statistics, graphs, and open a table view where the variants can be sorted, filtered, and their position visualised compared to the location of genes, based on data retrieved from API requests to ENSEMBL.
@@ -22,7 +27,7 @@ filtered by data from VCF, from annotation, or parsed form the INFO column.
 - Savable analysis as a portable sqlite database
 
 ## Authors
-Sean Laidlaw
+Sean Laidlaw, with supervision from Anna-Sophie Fiston-Lavier, and with contributions from Qiqi He.
 
 ## Requirements:
 Python:
@@ -70,8 +75,7 @@ It can also be run directly on a VCF file:
 python3 -m metallaxis ../samples/1000_genomes_extract.vcf.gz
 ```
 
-Or to load a previously saved Metallaxis session, by using the saved HDF5 as
-argument:
+Or to load a previously saved Metallaxis session, by using the saved database file as argument:
 ```bash
 python3 -m metallaxis ../saves/big_saved_analysis.sqlite
 ```
