@@ -1066,7 +1066,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			if is_number_bool(current_chr):
 				current_chr = str(int(current_chr))
 
-			api_request_str = "https://rest.ensembl.org/overlap/region/" + config['organism'] + "/" + current_chr + ":" + str(min_pos) + "-" + str(max_pos) + "?feature=gene;feature=transcript;feature=cds;feature=exon"
+			api_request_str = "https://rest.ensembl.org/overlap/region/" + config['organism'] + "/" + current_chr + ":" + str(min_pos) + "-" + str(max_pos) + "?feature=gene;"
 
 			def request_ensembl_gene_pos():
 				api_request = requests.get(api_request_str, headers={"Content-Type": "application/json"})
@@ -1145,7 +1145,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			# max_pos = int(self.graphics_min_pos_textin.text())
 
 		alleles_to_draw = []
-		my_query = "SELECT external_name,start,end,biotype,description,exon_id FROM (SELECT DISTINCT gene_id,external_name,start,end,biotype,description,exon_id FROM chrom_genes WHERE gene_id <> '' and start >= %d and end <= %d);" % (
+		my_query = "SELECT external_name,start,end,biotype,description FROM (SELECT DISTINCT gene_id,external_name,start,end,biotype,description FROM chrom_genes WHERE gene_id <> '' and start >= %d and end <= %d);" % (
 		min_pos, max_pos)
 		alleles_list = pd.read_sql(my_query, db_connection)
 		if not alleles_list.empty:
@@ -1166,10 +1166,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 				if not 'description' in line:
 				    line['description'] = None
 
-				if not 'exon_id' in line:
-				    line['exon_id'] = None
-
-				new_allele = SVGClasses.Allele(rel_position_on_line(line['start']), end_pos_on_line, line['external_name'], line['biotype'],line['description'],line['exon_id'], allele_nb)
+				new_allele = SVGClasses.Allele(rel_position_on_line(line['start']), end_pos_on_line, line['external_name'], line['biotype'],line['description'], allele_nb)
 
 				# add allele to list thatll be added to SVG
 				alleles_to_draw.append(new_allele)
@@ -1184,16 +1181,37 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		self.graphics_chr_label.setText(str(current_chr))
 
 		for current_row in current_rows:
-			current_pos = int(self.viewer_tab_table_widget.item(current_row, 1).text())
-			current_alt = self.viewer_tab_table_widget.item(current_row, 4).text()
+			table_column_dict = {}
+			for column_nb in range(self.viewer_tab_table_widget.columnCount()):
+				table_column_dict[self.viewer_tab_table_widget.horizontalHeaderItem(column_nb).text()] = column_nb
+
+			current_pos = int(self.viewer_tab_table_widget.item(current_row, table_column_dict['POS']).text())
+			current_id = self.viewer_tab_table_widget.item(current_row, table_column_dict['ID']).text()
+			current_ref = self.viewer_tab_table_widget.item(current_row, table_column_dict['REF']).text()
+			current_alt = self.viewer_tab_table_widget.item(current_row, table_column_dict['ALT']).text()
+			if 'Annotation_Impact' in table_column_dict:
+				current_impact = self.viewer_tab_table_widget.item(current_row, table_column_dict['Annotation_Impact']).text()
+			else:
+				current_impact = None
+			if 'Annotation' in table_column_dict:
+				current_annotation = self.viewer_tab_table_widget.item(current_row, table_column_dict['Annotation']).text()
+				if current_annotation == ".":
+					current_annotation = None
+			else:
+				current_annotation = None
+
+
 			te_pos = rel_position_on_line(current_pos)
 
+			if current_id == ".":
+				current_id = str(current_pos) + "\n" + current_ref + "→" + current_alt
+
 			if current_alt.startswith('<INS'):
-				varScene.add(SVGClasses.TE(te_pos, "ins"))
+				varScene.add(SVGClasses.TE(te_pos, current_id, current_impact, current_annotation, "ins"))
 			if current_alt.startswith('<DEL'):
-				varScene.add(SVGClasses.TE(te_pos, "del"))
+				varScene.add(SVGClasses.TE(te_pos, current_id, current_impact, current_annotation, "del"))
 			else:
-				varScene.add(SVGClasses.TE(te_pos))
+				varScene.add(SVGClasses.TE(te_pos, current_id, current_impact, current_annotation))
 
 			if len(alleles_to_draw) > 0:
 				for allele in alleles_to_draw:
