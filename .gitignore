@@ -39,3 +39,11 @@ ipython_config.py
 metallaxis/__pycache__/
 
 \.idea/
+
+build/
+
+dist/
+
+Metallaxis\.egg-info/
+
+metallaxis/annotation/data/
