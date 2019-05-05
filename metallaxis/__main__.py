@@ -779,6 +779,7 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 
 		# buttons on interface
 		self.open_vcf_button.clicked.connect(self.select_and_parse)
+		self.sql_mode_checkBox.stateChanged.connect(self.toggle_sql_mode)
 		# menus on interface
 		self.actionOpen_VCF.triggered.connect(self.select_and_parse)
 		self.actionSave_Analysis.triggered.connect(self.save_analysis)
@@ -861,6 +862,14 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			throw_error_message("No selected file")
 			return False
 		return selected_vcf
+
+	def toggle_sql_mode(self):
+		if self.sql_mode_checkBox.isChecked():
+			self.filter_box.setEnabled(False)
+			self.filter_label.setText("Filter VCF Table : e.g SELECT * FROM df WHERE CHROM==12;")
+		else:
+			self.filter_box.setEnabled(True)
+			self.filter_label.setText("Filter VCF Table (e.g CHROM 1,3,5)")
 
 	def select_and_parse(self, cli_arg=False):
 		"""
@@ -1170,77 +1179,92 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		Filters table based on chosen filters. Comma separated, dash separated, and single filters exist. This function
 		reads the chosen filter from the interface, requests rows matching those filters from the database and
 		populates table with that data.
+		Additionally offers an SQL input that runs the entered SQL command.
 		Accepts no arguments (retrieves all information from interface), and returns no value.
 		"""
 		selected_filter = self.filter_box.currentText()
 		filter_text = self.filter_lineedit.text()
-		# remove leading / trailing whitespace from request
-		filter_text = re.sub(r"\s+", "", filter_text)
-		filter_text = filter_text.upper()
 
-		if "-" in filter_text and "," in filter_text:
-			throw_error_message("Please only use either comma separated values or a dash separated range")
-			return
-
-		elif "-" in filter_text:
-			split_filter_text = filter_text.split("-")
-			# Filter out Null values to avoid corrupting item count
-			split_filter_text = filter(None, split_filter_text)
-			split_filter_text = list(split_filter_text)
-			split_filter_text = ["'" + str(split_filter_text[i]).replace('\'', '').replace(';', '') + "'" for i in range(0, len(split_filter_text))]
-			if len(split_filter_text) == 2:
-				self.filter_text.setText(
-					"Filtering to show " + selected_filter + " from " + str(split_filter_text[0]) + " to " + str(
-						split_filter_text[1]))
-
-				if split_filter_text[0] > split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[
-						1] + " and " + selected_filter + "<=" + \
-									   split_filter_text[0]
-				elif split_filter_text[0] < split_filter_text[1]:
-					filter_condition = selected_filter + ">=" + split_filter_text[
-						0] + " and " + selected_filter + "<=" + \
-									   split_filter_text[1]
-				else:
-					filter_condition = selected_filter + "==" + split_filter_text[0]
-
-
-			else:
-				throw_error_message("Please only enter 2 values separated by a dash")
+		if self.sql_mode_checkBox.isChecked():
+			try:
+				filtered_table = pd.read_sql_query(filter_text, sqlite_connection)
+			except (TypeError, pd.io.sql.DatabaseError) as error_message:
+				throw_error_message("Filter Error:\n" + str(error_message))
 				return
-
-		elif "," in filter_text:
-			split_filter_text = filter_text.split(",")
-			# Filter out Null values to avoid corrupting item count
-			split_filter_text = filter(None, split_filter_text)
-			split_filter_text = list(split_filter_text)
-			nb_filters = len(split_filter_text)
-			if nb_filters >= 1:
-				self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(split_filter_text))
-				split_filter_text = str(split_filter_text).replace('[', '')
-				split_filter_text = str(split_filter_text).replace(']', '')
-				split_filter_text = str(split_filter_text).replace('\'', '')
-				split_filter_text = str(split_filter_text).replace(' ', '')
-				split_filter_text = str(split_filter_text).replace(',', ' OR ' + selected_filter + "==")
-				filter_condition = selected_filter + "=" + split_filter_text
-
-			else:
-				self.filter_text.setText(" ")
-				throw_error_message("Please enter 2 or more values separated by a comma")
-				return
-
-		elif filter_text == "":
-			self.filter_text.setText("No Filter Selected")
-			filtered_table = pd.read_sql_query("SELECT * from df", sqlite_connection)
-			self.populate_table(filtered_table)
-			return
+			filter_text_to_set = filter_text
 
 		else:
-			self.filter_text.setText("Filtering to show " + selected_filter + ": " + str(filter_text))
-			filter_condition = selected_filter + "==" + filter_text + ";"
+			# remove leading / trailing whitespace from request
+			filter_text = re.sub(r"\s+", "", filter_text)
+			filter_text = filter_text.upper()
 
-		filtered_table = pd.read_sql_query("SELECT * from df where " + filter_condition, sqlite_connection)
+			if "-" in filter_text and "," in filter_text:
+				throw_error_message("Please only use either comma separated values or a dash separated range")
+				return
+
+			elif "-" in filter_text:
+				split_filter_text = filter_text.split("-")
+				# Filter out Null values to avoid corrupting item count
+				split_filter_text = filter(None, split_filter_text)
+				split_filter_text = list(split_filter_text)
+				split_filter_text = ["'" + str(split_filter_text[i]).replace('\'', '').replace(';', '') + "'" for i in range(0, len(split_filter_text))]
+				if len(split_filter_text) == 2:
+					filter_text_to_set = "Filtering to show " + selected_filter + " from " + str(split_filter_text[0]) + " to " + str(
+							split_filter_text[1])
+
+					if split_filter_text[0] > split_filter_text[1]:
+						filter_condition = selected_filter + ">=" + split_filter_text[
+							1] + " and " + selected_filter + "<=" + \
+										   split_filter_text[0]
+					elif split_filter_text[0] < split_filter_text[1]:
+						filter_condition = selected_filter + ">=" + split_filter_text[
+							0] + " and " + selected_filter + "<=" + \
+										   split_filter_text[1]
+					else:
+						filter_condition = selected_filter + "==" + split_filter_text[0]
+
+
+				else:
+					throw_error_message("Please only enter 2 values separated by a dash")
+					return
+
+			elif "," in filter_text:
+				split_filter_text = filter_text.split(",")
+				# Filter out Null values to avoid corrupting item count
+				split_filter_text = filter(None, split_filter_text)
+				split_filter_text = list(split_filter_text)
+				nb_filters = len(split_filter_text)
+				if nb_filters >= 1:
+					filter_text_to_set = "Filtering to show " + selected_filter + ": " + str(split_filter_text)
+					split_filter_text = str(split_filter_text).replace('[', '')
+					split_filter_text = str(split_filter_text).replace(']', '')
+					split_filter_text = str(split_filter_text).replace('\'', '')
+					split_filter_text = str(split_filter_text).replace(' ', '')
+					split_filter_text = str(split_filter_text).replace(',', ' OR ' + selected_filter + "==")
+					filter_condition = selected_filter + "=" + split_filter_text
+
+				else:
+					self.filter_text.setText(" ")
+					throw_error_message("Please enter 2 or more values separated by a comma")
+					return
+
+			elif filter_text == "":
+				filtered_table = pd.read_sql_query("SELECT * from df", sqlite_connection)
+				self.populate_table(filtered_table)
+				return
+
+			else:
+				filter_text_to_set = "Filtering to show " + selected_filter + ": " + str(filter_text)
+				filter_condition = selected_filter + "==" + filter_text + ";"
+
+			try:
+				filtered_table = pd.read_sql_query("SELECT * from df where " + filter_condition, sqlite_connection)
+			except (TypeError, pd.io.sql.DatabaseError) as error_message:
+				throw_error_message("Filter Error:\n" + str(error_message))
+				return
 		self.populate_table(filtered_table)
+		self.filter_text.setText(filter_text_to_set)
+
 
 	def write_database_to_interface(self, loaded_database):
 		"""
