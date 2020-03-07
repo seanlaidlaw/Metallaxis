@@ -1058,8 +1058,8 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 		if min_pos < 0:
 			min_pos = 0
 
-		self.graphics_max_pos_textin.setText(str(min_pos))
-		self.graphics_min_pos_textin.setText(str(max_pos))
+		self.graphics_max_pos_textin.setText(str(max_pos))
+		self.graphics_min_pos_textin.setText(str(min_pos))
 
 		def get_ENSEMBL_annotation(min_pos, max_pos, current_chr):
 			# if chrom '01' then flatten to '1' so works with the API
