@@ -1014,16 +1014,16 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			either side, or half the position, or the starting point of the
 			VCF + 5Mb.
 			"""
-			# Find default positions
-			if (current_pos / 2) < 2500000:
-				min_pos = (current_pos / 2)
-				max_pos = current_pos + (current_pos / 2)
-			elif (current_pos - 2500000) > chrom_data['POS'].min():
-				min_pos = (current_pos - (2500000 - 1))
-				max_pos = (current_pos + (2500000 - 1))
+			adjustment = 100000
+			if current_pos > 100000:
+				min_pos = current_pos - adjustment
+				max_pos = current_pos + adjustment
 			else:
-				min_pos = chrom_data['POS'].min()
-				max_pos = min_pos + (5000000 - 1)
+			# if pos is less than 100kb then subtract difference from that so that the
+                        # variants are centered
+				adjustment = adjustment + (current_pos - adjustment)
+				min_pos = current_pos - adjustment
+				max_pos = current_pos + adjustment
 
 			min_pos = int(float(min_pos))
 			max_pos = int(float(max_pos))
@@ -1127,22 +1127,6 @@ class MetallaxisGuiClass(gui_base_object, gui_window_object):
 			rel_pos = rel_pos * line_length
 			rel_pos = rel_pos + 50
 			return rel_pos
-
-		# if not read_pos_input:
-			# # if multiple selected rows, get the biggest and smallest pos
-			# if len(list_of_selected_pos) > 1:
-				# min_pos = list_of_selected_pos[0]
-				# max_pos = list_of_selected_pos[1]
-				# for pos in list_of_selected_pos:
-					# if pos < min_pos:
-						# min_pos = pos
-					# if pos > max_pos:
-						# max_pos = pos
-			# min_pos -= 500
-			# max_pos += 500
-		# else:
-			# min_pos = int(self.graphics_max_pos_textin.text())
-			# max_pos = int(self.graphics_min_pos_textin.text())
 
 		alleles_to_draw = []
 		my_query = "SELECT external_name,start,end,biotype,description FROM (SELECT DISTINCT gene_id,external_name,start,end,biotype,description FROM chrom_genes WHERE gene_id <> '' and start >= %d and end <= %d);" % (
