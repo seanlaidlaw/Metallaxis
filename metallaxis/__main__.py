@@ -648,8 +648,8 @@ def database_encode(decompressed_file, variant_stats, metadata_dict):
 					col = col.replace('"', "")
 					col = col.replace('>', "")
 					col = col.replace("'", '')
-					col = re.sub('^\s+', '', col)
-					col = re.sub('\s+$', '', col)
+					col = re.sub(r'^\s+', '', col)
+					col = re.sub(r'\s+$', '', col)
 					anno_info_cols_to_add.append(col)
 
 	chunked_vcf = pd.read_csv(decompressed_file,
