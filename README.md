@@ -5,8 +5,8 @@
 
 
 
-#  Metallaxis 
-![MetallaxisLogo](../../Projet/Metallaxis/icons/Icon128.png)
+#  Metallaxis
+![MetallaxisLogo](icons/Icon128.png)
 
 
 
@@ -34,7 +34,7 @@ Python:
 - Python 3.6
 
 Libraries
-- python-magic : 0.4.15
+- magicfile : 0.4.22
 - pandas : 0.23.4
 - numpy : 1.15.4
 - PyQt5 : 5.11.2
@@ -59,7 +59,7 @@ running the make file which will install dependancies and install as a python
 module.
 
 ```bash
-git clone https://github.com/SL-LAIDLAW/Metallaxis
+git clone https://github.com/seanlaidlaw/Metallaxis
 cd Metallaxis && make
 ```
 
