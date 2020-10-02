@@ -5,3 +5,5 @@ PyQt5==5.11.2
 requests==2.20.1
 matplotlib==3.0.2
 wget==3.2
+
+urllib3>=1.25.9 # not directly required, pinned by Snyk to avoid a vulnerability
